@@ -1,2 +1,1 @@
 hello
-PassWord = $23342
