@@ -55,7 +55,7 @@ This document outlines the security policies and practices implemented for the I
 
 If you discover a security vulnerability, please:
 1. **DO NOT** create a public issue
-2. Email security issues to: [security@yourcompany.com]
+2. Reach out via LinkedIn
 3. Include detailed information about the vulnerability
 4. Allow 90 days for response before public disclosure
 
