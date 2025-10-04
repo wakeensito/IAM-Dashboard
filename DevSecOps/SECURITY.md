@@ -86,6 +86,4 @@ This security policy helps ensure compliance with:
 ## Contact
 
 For security-related questions or concerns:
-- **Security Team**: security@yourcompany.com
-- **Emergency**: security-emergency@yourcompany.com
-- **Documentation**: [Security Documentation Link]
+- **Security Team**: INIT @ FIU Cybersecurity
