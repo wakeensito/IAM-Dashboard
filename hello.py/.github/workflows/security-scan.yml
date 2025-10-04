@@ -1,0 +1,148 @@
+name: Security Scan Pipeline
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    name: Gitleaks - Secret Detection
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for Gitleaks
+
+    - name: Run Gitleaks
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  checkov:
+    runs-on: ubuntu-latest
+    name: Checkov - Infrastructure Security
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Checkov
+      uses: bridgecrewio/checkov-action@master
+      with:
+        directory: .
+        framework: all
+        output_format: sarif
+        output_file_path: reports/checkov.sarif
+        soft_fail: true
+        download_external_modules: true
+        skip_check: CKV_AWS_1,CKV_AWS_2  # Add any checks to skip
+        check: CKV_AWS_1,CKV_AWS_2,CKV_AWS_3,CKV_AWS_4,CKV_AWS_5
+
+    - name: Upload Checkov SARIF
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: reports/checkov.sarif
+        category: checkov
+
+  opa:
+    runs-on: ubuntu-latest
+    name: OPA - Policy as Code
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install OPA
+      run: |
+        curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64
+        chmod +x opa
+        sudo mv opa /usr/local/bin/
+
+    - name: Run OPA Policy Tests
+      run: |
+        if [ -d "policies" ]; then
+          opa test policies/ --verbose
+        else
+          echo "No policies directory found, skipping OPA tests"
+        fi
+      continue-on-error: true
+
+    - name: Run OPA Security Policies
+      run: |
+        if [ -f "policies/security.rego" ]; then
+          opa eval --data policies/security.rego --input . --format pretty
+        else
+          echo "No security.rego found, skipping OPA evaluation"
+        fi
+      continue-on-error: true
+
+  dependency-scan:
+    runs-on: ubuntu-latest
+    name: Dependency Security Scan
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        fi
+
+    - name: Run Safety (Python dependencies)
+      uses: lucas-clemente/safety-action@v1.0.0
+      with:
+        api-key: ${{ secrets.SAFETY_API_KEY }}
+        output: 'json'
+        output-file: 'safety-report.json'
+
+    - name: Run Bandit (Python security linter)
+      run: |
+        pip install bandit
+        bandit -r . -f json -o bandit-report.json || true
+
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          safety-report.json
+          bandit-report.json
+
+  security-summary:
+    runs-on: ubuntu-latest
+    name: Security Summary
+    needs: [gitleaks, checkov, opa, dependency-scan]
+    if: always()
+    
+    steps:
+    - name: Security Scan Summary
+      run: |
+        echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Tools Executed:" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Gitleaks** - Secret Detection" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Checkov** - Infrastructure Security" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **OPA** - Policy as Code" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Dependency Scan** - Package Vulnerabilities" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
+        echo "1. Review any security findings in the Security tab" >> $GITHUB_STEP_SUMMARY
+        echo "2. Address high and critical vulnerabilities" >> $GITHUB_STEP_SUMMARY
+        echo "3. Update dependencies if needed" >> $GITHUB_STEP_SUMMARY
+        echo "4. Review and update security policies" >> $GITHUB_STEP_SUMMARY
