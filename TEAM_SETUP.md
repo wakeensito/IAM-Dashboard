@@ -27,7 +27,7 @@ docker-compose up -d
 ```
 
 That's it! The dashboard will be available at:
-- **Main Dashboard**: http://localhost:5000
+- **Main Dashboard**: http://localhost:5001
 - **Grafana**: http://localhost:3000 (admin/admin)
 - **Prometheus**: http://localhost:9090
 
