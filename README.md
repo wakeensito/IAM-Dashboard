@@ -7,10 +7,17 @@ A comprehensive cybersecurity dashboard for AWS cloud security monitoring, compl
 ### One-Command Setup
 
 ```bash
-# Clone and setup
-git clone https://github.com/wakeensito/IAM-Dashboard.git
+# 1. Fork the repository on GitHub first
+# 2. Clone YOUR fork
+git clone https://github.com/YOUR-USERNAME/IAM-Dashboard.git
+
 cd "Dashboard"
-./setup.sh
+
+# 3. Add upstream remote
+git remote add upstream https://github.com/wakeensito/IAM-Dashboard.git
+
+# 4. Start the application
+docker-compose up -d
 ```
 
 ### Manual Setup
