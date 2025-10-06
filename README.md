@@ -1,4 +1,4 @@
-# Cybersecurity Dashboard Design (Community)
+# Dashboard
 
 A comprehensive cybersecurity dashboard for AWS cloud security monitoring, compliance tracking, and threat intelligence visualization.
 
@@ -9,7 +9,7 @@ A comprehensive cybersecurity dashboard for AWS cloud security monitoring, compl
 ```bash
 # Clone and setup
 git clone <your-repo-url>
-cd "Cybersecurity Dashboard Design (Community)"
+cd "Dashboard"
 ./setup.sh
 ```
 

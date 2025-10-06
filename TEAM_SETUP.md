@@ -15,7 +15,7 @@ This guide will help your team of 8 get up and running with the Cybersecurity Da
 ```bash
 # Clone the repository
 git clone <your-repo-url>
-cd "Cybersecurity Dashboard Design (Community)"
+cd "Dashboard"
 
 # Start the entire stack
 docker-compose up -d
@@ -91,7 +91,7 @@ docker-compose down
 ## 📁 Project Structure
 
 ```
-Cybersecurity Dashboard Design (Community)/
+Dashboard/
 ├── backend/                 # Flask API backend
 │   ├── api/                # API endpoints
 │   ├── services/          # Business logic
