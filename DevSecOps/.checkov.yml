@@ -1,0 +1,50 @@
+# Checkov configuration for IAM Dashboard
+# This file configures Checkov security scanning
+
+# Framework to scan
+framework:
+  - terraform
+  - cloudformation
+  - kubernetes
+  - dockerfile
+  - helm
+
+# Output formats
+output: sarif,json,cli
+
+# Skip specific checks (add as needed)
+skip-check:
+  - CKV_AWS_1    # Ensure IAM policies don't allow wildcard actions
+  - CKV_AWS_2    # Ensure IAM policies don't allow wildcard resources
+  - CKV_AWS_3    # Ensure IAM policies don't allow wildcard principals
+
+# Include specific checks for IAM security
+check:
+  - CKV_AWS_1    # IAM policies with wildcard actions
+  - CKV_AWS_2    # IAM policies with wildcard resources
+  - CKV_AWS_3    # IAM policies with wildcard principals
+  - CKV_AWS_4    # IAM policies with wildcard actions and resources
+  - CKV_AWS_5    # IAM policies with wildcard actions and principals
+  - CKV_AWS_6    # IAM policies with wildcard resources and principals
+  - CKV_AWS_7    # IAM policies with wildcard actions, resources, and principals
+  - CKV_AWS_8    # IAM policies with wildcard actions and resources
+  - CKV_AWS_9    # IAM policies with wildcard actions and principals
+  - CKV_AWS_10   # IAM policies with wildcard resources and principals
+
+# Soft fail on specific checks
+soft-fail-on:
+  - CKV_AWS_1
+  - CKV_AWS_2
+  - CKV_AWS_3
+
+# Download external modules
+download-external-modules: true
+
+# Include git history
+git-history: true
+
+# Include secrets scanning
+secrets-scan: true
+
+# Include license scanning
+license-scan: true
