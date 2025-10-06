@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   # Main Flask application
   app:
     build: .
     container_name: cybersecurity-dashboard
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=1

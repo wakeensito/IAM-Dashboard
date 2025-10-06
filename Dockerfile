@@ -7,14 +7,15 @@ WORKDIR /app/frontend
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies (including dev dependencies for build)
+RUN npm install
 
-# Copy source code
+# Copy source code and config files
 COPY src/ ./src/
 COPY index.html ./
 COPY vite.config.ts ./
 COPY tsconfig.json ./
+COPY tsconfig.node.json ./
 
 # Build the frontend
 RUN npm run build
@@ -42,7 +43,7 @@ COPY backend/ ./backend/
 COPY config/ ./config/
 
 # Copy built frontend from previous stage
-COPY --from=frontend-builder /app/frontend/dist ./static
+COPY --from=frontend-builder /app/frontend/build ./static
 
 # Create necessary directories
 RUN mkdir -p logs data/uploads
