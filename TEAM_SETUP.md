@@ -13,11 +13,16 @@ This guide will help your team of 8 get up and running with the Cybersecurity Da
 ### One-Command Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/wakeensito/IAM-Dashboard.git
+# 1. Fork the repository on GitHub first
+# 2. Clone YOUR fork
+git clone https://github.com/YOUR-USERNAME/IAM-Dashboard.git
+
 cd "Dashboard"
 
-# Start the entire stack
+# 3. Add upstream remote
+git remote add upstream https://github.com/wakeensito/IAM-Dashboard.git
+
+# 4. Start the application
 docker-compose up -d
 ```
 
