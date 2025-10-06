@@ -8,7 +8,7 @@ A comprehensive cybersecurity dashboard for AWS cloud security monitoring, compl
 
 ```bash
 # Clone and setup
-git clone <your-repo-url>
+git clone https://github.com/wakeensito/IAM-Dashboard.git
 cd "Cybersecurity Dashboard Design (Community)"
 ./setup.sh
 ```
