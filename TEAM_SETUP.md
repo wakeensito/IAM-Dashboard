@@ -14,7 +14,7 @@ This guide will help your team of 8 get up and running with the Cybersecurity Da
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/wakeensito/IAM-Dashboard.git
 cd "Dashboard"
 
 # Start the entire stack
