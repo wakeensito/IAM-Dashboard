@@ -32,7 +32,7 @@ docker-compose logs -f
 
 ## 🌐 Access Points
 
-- **Main Dashboard**: http://localhost:5000
+- **Main Dashboard**: http://localhost:5001
 - **Grafana Monitoring**: http://localhost:3000 (admin/admin)
 - **Prometheus Metrics**: http://localhost:9090
 
