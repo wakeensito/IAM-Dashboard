@@ -2,7 +2,7 @@
 
 ## 🚀 Quick Start
 
-This guide will help your team of 8 get up and running with the Cybersecurity Dashboard in minutes.
+Welcome Team ! ! !
 
 ### Prerequisites
 
