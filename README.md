@@ -1,4 +1,4 @@
-# Dashboard
+# IAM Dashboard
 
 A comprehensive cybersecurity dashboard for AWS cloud security monitoring, compliance tracking, and threat intelligence visualization.
 
