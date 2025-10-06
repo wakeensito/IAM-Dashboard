@@ -175,7 +175,7 @@ Access Prometheus at http://localhost:9090:
 
 ### Common Issues
 
-1. **Port conflicts**: Ensure ports 5000, 3000, 5432, 6379, 9090 are available
+1. **Port conflicts**: Ensure ports 5001, 3000, 5432, 6379, 9090 are available
 2. **Docker issues**: Run `docker system prune` to clean up
 3. **Permission issues**: Ensure Docker has proper permissions
 
