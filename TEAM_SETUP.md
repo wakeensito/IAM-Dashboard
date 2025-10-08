@@ -7,6 +7,7 @@ Welcome Team ! ! !
 ### Prerequisites
 
 - Docker and Docker Compose installed
+- Python Flask = pip install flask
 - Git installed
 - Basic familiarity with command line
 
@@ -17,7 +18,7 @@ Welcome Team ! ! !
 # 2. Clone YOUR fork
 git clone https://github.com/YOUR-USERNAME/IAM-Dashboard.git
 
-cd "Dashboard"
+cd "IAM-Dashboard"
 
 # 3. Add upstream remote
 git remote add upstream https://github.com/wakeensito/IAM-Dashboard.git
