@@ -23,11 +23,14 @@ docker-compose up -d
 ### Manual Setup
 
 ```bash
-# Start the entire stack
+# Start all services
 docker-compose up -d
 
 # View logs
 docker-compose logs -f
+
+# Stop services
+docker-compose down
 ```
 
 ## 🌐 Access Points
