@@ -26,8 +26,11 @@ git remote add upstream https://github.com/wakeensito/IAM-Dashboard.git
 # 4. Start the application
 docker-compose up -d
 
-# If step 4 don't work try
+# Start services
 docker-compose up --build -d
+
+# Stop services
+docker-compose down
 ```
 
 That's it! The dashboard will be available at:
