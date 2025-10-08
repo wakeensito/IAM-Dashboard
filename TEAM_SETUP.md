@@ -61,32 +61,6 @@ That's it! The dashboard will be available at:
 
 ## 🔧 Development Workflow
 
-### For Frontend Developers
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-```
-
-### For Backend Developers
-
-```bash
-# Install Python dependencies
-pip install -r requirements.txt
-
-# Run Flask development server
-python backend/app.py
-
-# Run tests
-pytest
-```
-
 ### For Full-Stack Development
 
 ```bash
