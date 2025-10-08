@@ -20,7 +20,7 @@ git remote add upstream https://github.com/wakeensito/IAM-Dashboard.git
 docker-compose up -d
 ```
 
-### Manual Setup
+### Full-Stack Development
 
 ```bash
 # Start all services
@@ -149,18 +149,6 @@ python backend/app.py
 
 # Run tests
 pytest
-```
-
-### Full-Stack Development
-```bash
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
 ```
 
 ## 📁 Project Structure
