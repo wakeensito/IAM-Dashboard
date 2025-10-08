@@ -26,7 +26,7 @@ git remote add upstream https://github.com/wakeensito/IAM-Dashboard.git
 # 4. Start the application
 docker-compose up -d
 
-# Start services
+# Rebuild containers
 docker-compose up --build -d
 
 # Stop services
