@@ -7,19 +7,19 @@ This document outlines the security policies and practices implemented for the I
 
 ### 1. Gitleaks - Secret Detection
 - **Purpose**: Scans code for accidentally committed secrets
-- **Configuration**: `.gitleaks.toml`
+- **Configuration**: `DevSecOps/.gitleaks.toml`
 - **Triggers**: On every push and pull request
 - **Reports**: Available in GitHub Security tab
 
 ### 2. Checkov - Infrastructure Security
 - **Purpose**: Scans infrastructure code for security misconfigurations
-- **Configuration**: `.checkov.yml`
+- **Configuration**: `DevSecOps/.checkov.yml`
 - **Frameworks**: Terraform, CloudFormation, Kubernetes, Dockerfile
 - **Reports**: SARIF format in GitHub Security tab
 
 ### 3. OPA (Open Policy Agent) - Policy as Code
 - **Purpose**: Enforces security policies as code
-- **Configuration**: `policies/security.rego` and `policies/iam-policies.rego`
+- **Configuration**: `DevSecOps/opa-policies/security.rego` and `DevSecOps/opa-policies/iam-policies.rego`
 - **Policies**: IAM-specific security rules
 - **Reports**: Policy evaluation results
 
@@ -41,15 +41,42 @@ This document outlines the security policies and practices implemented for the I
 
 ## Security Workflow
 
-### Automated Scans
+### GitHub Actions Pipeline
+Our security scanning is automated through GitHub Actions using the `devsecops-scan.yml` workflow:
+
 - **Daily**: Scheduled security scans at 2 AM UTC
-- **On Push**: Security scans on every push to main/develop
+- **On Push**: Security scans on every push to main/develop branches
 - **On PR**: Security scans on every pull request
+- **Manual**: Can be triggered manually from GitHub Actions tab
+
+### Workflow Components
+- **OPA Policy Validation**: Validates security policies in `DevSecOps/opa-policies/`
+- **Checkov Infrastructure Scan**: Scans infrastructure code for security misconfigurations
+- **Gitleaks Secret Detection**: Detects accidentally committed secrets
+- **Local Development Testing**: Tests Makefile commands and project structure
+- **Artifact Upload**: Uploads scan results for review
+
+### Local Development
+Use the Makefile for local security scanning:
+```bash
+make scan        # Run all security scans
+make opa         # Run OPA policy validation
+make checkov     # Run Checkov infrastructure scan
+make gitleaks    # Run Gitleaks secret detection
+```
 
 ### Manual Security Reviews
 - **High/Critical Issues**: Must be reviewed and resolved before merge
 - **Medium Issues**: Should be addressed within 7 days
 - **Low Issues**: Should be addressed within 30 days
+
+### Dependabot Integration
+Automated dependency updates are configured via `.github/dependabot.yml`:
+- **Python dependencies**: Weekly updates on Mondays
+- **GitHub Actions**: Weekly updates for workflow actions
+- **Docker dependencies**: Weekly updates for base images
+- **Terraform dependencies**: Weekly updates for providers
+- **Security team review**: All updates require security team approval
 
 ## Reporting Security Issues
 
