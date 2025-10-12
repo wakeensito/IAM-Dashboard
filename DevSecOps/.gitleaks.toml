@@ -29,7 +29,8 @@ exclude-patterns = [
     "docs/**",
     "DevSecOps/opa-policies/**",
     "docker-compose.yml",
-    "config/grafana/provisioning/datasources/datasources.yml"
+    "config/grafana/provisioning/datasources/datasources.yml",
+    "docs/SCANNERS.md"
 ]
 
 # Exclude specific directories
@@ -59,7 +60,8 @@ exclude-files = [
     "README.md",
     "docs/**/*.md",
     "docker-compose.yml",
-    "config/grafana/provisioning/datasources/datasources.yml"
+    "config/grafana/provisioning/datasources/datasources.yml",
+    "docs/SCANNERS.md"
 ]
 
 # Enable only essential security rules

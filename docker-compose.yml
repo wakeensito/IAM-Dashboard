@@ -127,7 +127,7 @@ services:
     volumes:
       - .:/workspace:ro
     working_dir: /workspace
-    command: detect --config /workspace/DevSecOps/.gitleaks.toml --source /workspace --report-format json --report-path /tmp/gitleaks-results.json
+    command: detect --config /workspace/DevSecOps/.gitleaks.toml --source /workspace --no-git --report-format json --report-path /tmp/gitleaks-results.json
     profiles:
       - scanners
     networks:
