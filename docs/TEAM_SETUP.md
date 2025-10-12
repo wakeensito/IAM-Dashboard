@@ -31,6 +31,21 @@ docker-compose up --build -d
 
 # Stop services
 docker-compose down
+
+# Get Updates
+
+# 1. Make sure you're on your local main branch
+git checkout main
+
+# 2. Fetch new commits from the upstream (your main IAM-Dashboard repo)
+git fetch upstream
+
+# 3. Merge those upstream changes into your local main
+git merge upstream/main
+
+# 4. Push to their personal fork (so GitHub stays in sync)
+git push origin main
+
 ```
 
 That's it! The dashboard will be available at:
