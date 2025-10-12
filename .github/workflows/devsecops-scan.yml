@@ -56,6 +56,7 @@ jobs:
           detect \
           --config /workspace/DevSecOps/.gitleaks.toml \
           --source /workspace \
+          --no-git \
           --report-format json \
           --report-path /tmp/gitleaks-results.json
       continue-on-error: false

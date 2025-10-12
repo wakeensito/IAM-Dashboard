@@ -62,13 +62,6 @@ OPA is a "Policy as Code" tool. Instead of writing security rules in documentati
   - `terraform.rego` - Terraform security policies
   - `kubernetes.rego` - Kubernetes security policies
 
-### How OPA Works in Our Setup
-- **Docker Container**: Uses `openpolicyagent/opa:0.58.0` image
-- **Command**: `opa test /policies/ --verbose`
-- **Volume Mounts**: 
-  - Project root mounted as `/workspace:ro`
-  - Policies mounted as `/policies:ro`
-
 ---
 
 ## Checkov
@@ -103,13 +96,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "data" {
 }
 ```
 
-### Our Checkov Configuration
-- **Docker Container**: Uses `bridgecrew/checkov:3.1.25` image
-- **Command**: `checkov -d /workspace --framework terraform --framework dockerfile --output json --output-file-path /tmp/checkov-results.json --quiet --skip-check CKV_AWS_1,CKV_AWS_2,CKV_AWS_3`
-- **Volume Mounts**: Project root mounted as `/workspace:ro`
-- **Focus areas**: Docker security, infrastructure best practices
-- **Skipped checks**: AWS-specific checks (handled by OPA policies)
-
 ---
 
 ## Gitleaks
@@ -126,8 +112,8 @@ Gitleaks scans your Git repository for accidentally committed secrets like API k
 ### Example: What Gitleaks catches
 ```python
 # ❌ BAD: Hardcoded secret in code
-aws_access_key = "AKIAIOSFODNN7EXAMPLE"
-aws_secret_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+aws_access_key = "AKIA_EXAMPLE_KEY_NOT_REAL"
+aws_secret_key = "EXAMPLE_SECRET_KEY_NOT_REAL"
 
 # ✅ GOOD: Using environment variables
 import os
@@ -135,12 +121,6 @@ aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
 aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
 ```
 
-### Our Gitleaks Configuration
-- **Docker Container**: Uses `zricethezav/gitleaks:v8.18.0` image
-- **Command**: `gitleaks detect --config /workspace/DevSecOps/.gitleaks.toml --source /workspace --report-format json --report-path /tmp/gitleaks-results.json`
-- **Volume Mounts**: Project root mounted as `/workspace:ro`
-- **Config file**: `DevSecOps/.gitleaks.toml`
-- **Custom rules**: IAM-specific patterns, JWT tokens, database URLs
 
 ---
 
