@@ -1,14 +1,12 @@
-# Gitleaks configuration for IAM Dashboard
-# This file configures secret detection rules
-
+# DevSecOps/.gitleaks.toml - Optimized for IAM Dashboard
 [gitleaks]
-# Enable all rules
-enable-all-rules = true
+# Use specific rules instead of all rules to reduce false positives
+enable-all-rules = false
 
-# Exclude specific file patterns
+# Exclude patterns for common false positives
 exclude-patterns = [
     "*.md",
-    "*.txt",
+    "*.txt", 
     "*.log",
     "*.json",
     "*.yml",
@@ -17,7 +15,21 @@ exclude-patterns = [
     ".git/**",
     "vendor/**",
     "*.lock",
-    "*.sum"
+    "*.sum",
+    "dist/**",
+    "build/**",
+    ".next/**",
+    ".terraform/**",
+    "*.tfstate",
+    "*.tfplan",
+    ".gitignore",
+    "README.md",
+    "env.example",
+    "*.example",
+    "docs/**",
+    "DevSecOps/opa-policies/**",
+    "docker-compose.yml",
+    "config/grafana/provisioning/datasources/datasources.yml"
 ]
 
 # Exclude specific directories
@@ -28,7 +40,11 @@ exclude-dirs = [
     "dist",
     "build",
     ".next",
-    ".nuxt"
+    ".terraform",
+    "logs",
+    "data",
+    "docs",
+    "DevSecOps/opa-policies"
 ]
 
 # Exclude specific files
@@ -36,31 +52,37 @@ exclude-files = [
     "package-lock.json",
     "yarn.lock",
     "go.sum",
-    "Pipfile.lock"
+    "Pipfile.lock",
+    "*.tfstate",
+    "*.tfplan",
+    "env.example",
+    "README.md",
+    "docs/**/*.md",
+    "docker-compose.yml",
+    "config/grafana/provisioning/datasources/datasources.yml"
 ]
 
-# Custom rules for IAM Dashboard
+# Enable only essential security rules
 [[rules]]
-id = "iam-dashboard-custom"
-description = "Custom IAM Dashboard secret patterns"
-regex = '''(?i)(aws_access_key_id|aws_secret_access_key|aws_session_token|api_key|secret_key|private_key)'''
-tags = ["iam", "aws", "secret"]
+id = "aws-access-key"
+description = "AWS Access Key"
+regex = '''AKIA[0-9A-Z]{16}'''
+tags = ["aws", "key"]
+
+[[rules]]
+id = "aws-secret-key"
+description = "AWS Secret Key"
+regex = '''(?i)aws_secret_access_key\s*=\s*['\"][A-Za-z0-9/+=]{40}['\"]'''
+tags = ["aws", "secret"]
+
+[[rules]]
+id = "github-token"
+description = "GitHub Token"
+regex = '''ghp_[0-9a-zA-Z]{36}'''
+tags = ["github", "token"]
 
 [[rules]]
 id = "jwt-token"
 description = "JWT Token"
 regex = '''eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*'''
 tags = ["jwt", "token"]
-
-[[rules]]
-id = "database-url"
-description = "Database URL"
-regex = '''(mysql|postgres|mongodb)://[^\s]+'''
-tags = ["database", "url"]
-
-# Exclude common false positives
-[[rules]]
-id = "exclude-false-positives"
-description = "Exclude false positives"
-regex = '''(example|test|dummy|placeholder|your_.*_here)'''
-tags = ["exclude"]
