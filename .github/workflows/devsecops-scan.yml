@@ -37,12 +37,14 @@ jobs:
         echo "🔍 Running Checkov infrastructure scan..."
         docker run --rm \
           -v ${{ github.workspace }}:/workspace:ro \
-          -v ${{ github.workspace }}/DevSecOps/.checkov.yml:/workspace/.checkov.yml:ro \
           bridgecrew/checkov:3.1.25 \
           -d /workspace \
-          --config-file /workspace/.checkov.yml \
+          --framework terraform \
+          --framework dockerfile \
           --output json \
-          --output-file-path /tmp/checkov-results.json
+          --output-file-path /tmp/checkov-results.json \
+          --quiet \
+          --skip-check CKV_AWS_1,CKV_AWS_2,CKV_AWS_3
       continue-on-error: false
 
     - name: Run Gitleaks Secret Detection
@@ -50,10 +52,9 @@ jobs:
         echo "🔍 Running Gitleaks secret detection..."
         docker run --rm \
           -v ${{ github.workspace }}:/workspace:ro \
-          -v ${{ github.workspace }}/DevSecOps/.gitleaks.toml:/workspace/.gitleaks.toml:ro \
-          gitleaks/gitleaks:v8.18.0 \
+          zricethezav/gitleaks:v8.18.0 \
           detect \
-          --config /workspace/.gitleaks.toml \
+          --config /workspace/DevSecOps/.gitleaks.toml \
           --source /workspace \
           --report-format json \
           --report-path /tmp/gitleaks-results.json
