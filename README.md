@@ -11,7 +11,7 @@ A comprehensive cybersecurity dashboard for AWS cloud security monitoring, compl
 # 2. Clone YOUR fork
 git clone https://github.com/YOUR-USERNAME/IAM-Dashboard.git
 
-cd "IAM-Dashboard"
+cd IAM-Dashboard
 
 # 3. Add upstream remote
 git remote add upstream https://github.com/wakeensito/IAM-Dashboard.git
@@ -38,6 +38,56 @@ docker-compose down
 - **Main Dashboard**: http://localhost:5001
 - **Grafana Monitoring**: http://localhost:3000 (admin/admin)
 - **Prometheus Metrics**: http://localhost:9090
+
+## 🔍 Run DevSecOps Scans
+
+### Quick Security Scan
+
+```bash
+# Run all security scans (OPA + Checkov + Gitleaks)
+make scan
+
+# Run individual scans
+make opa         # OPA policy validation
+make checkov     # Infrastructure security scan
+make gitleaks    # Secret detection scan
+```
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+- No local tool installation required
+
+### Troubleshooting
+
+**Docker Issues:**
+```bash
+# Check Docker status
+make check-docker
+
+# Clean up containers
+make clean-scans
+
+# Restart Docker service (if needed)
+sudo systemctl restart docker  # Linux
+sudo service docker restart    # macOS
+```
+
+**Permission Issues:**
+```bash
+# Add user to docker group (Linux)
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Reset Docker permissions (macOS)
+sudo chown -R $USER ~/.docker
+```
+
+**Common Issues:**
+- **Port conflicts**: Ensure ports 5001, 3000, 5432, 6379, 9090 are available
+- **Docker not running**: Start Docker Desktop or Docker daemon
+- **Permission denied**: Check Docker group membership
+- **Out of space**: Run `docker system prune` to clean up
 
 ## 🏗️ Architecture
 
@@ -154,30 +204,73 @@ pytest
 ## 📁 Project Structure
 
 ```
-├── backend/                 # Flask API backend
-│   ├── api/                # API endpoints
-│   │   ├── aws_iam.py      # IAM security analysis
-│   │   ├── aws_ec2.py      # EC2 security analysis
-│   │   ├── aws_s3.py       # S3 security analysis
+├── .github/              # GitHub configuration
+│   ├── workflows/        # GitHub Actions workflows
+│   │   └── devsecops-scan.yml # Security scanning pipeline
+│   └── dependabot.yml    # Automated dependency updates
+├── backend/              # Flask API backend
+│   ├── api/              # API endpoints
+│   │   ├── aws_iam.py    # IAM security analysis
+│   │   ├── aws_ec2.py    # EC2 security analysis
+│   │   ├── aws_s3.py     # S3 security analysis
 │   │   ├── aws_security_hub.py # Security Hub integration
-│   │   ├── aws_config.py   # Config compliance
-│   │   ├── grafana.py      # Grafana integration
-│   │   └── dashboard.py    # Dashboard API
-│   ├── services/          # Business logic
-│   │   ├── aws_service.py  # AWS SDK integration
+│   │   ├── aws_config.py # Config compliance
+│   │   ├── grafana.py    # Grafana integration
+│   │   ├── dashboard.py  # Dashboard API
+│   │   └── health.py     # Health check endpoint
+│   ├── services/         # Business logic
+│   │   ├── aws_service.py # AWS SDK integration
 │   │   ├── grafana_service.py # Grafana API
 │   │   └── database_service.py # Database operations
-│   └── app.py             # Flask application
-├── config/                # Configuration files
+│   ├── sql/              # Database initialization
+│   │   └── init.sql      # Database schema
+│   └── app.py            # Flask application
+├── config/               # Configuration files
 │   ├── grafana/          # Grafana configuration
+│   │   ├── provisioning/ # Auto-provisioning configs
+│   │   └── dashboards/   # Custom dashboards
 │   └── prometheus/       # Prometheus configuration
-├── src/                   # React frontend
+│       └── prometheus.yml # Prometheus config
+├── DevSecOps/            # Security scanning and policies
+│   ├── opa-policies/     # OPA policy files
+│   │   ├── iam-policies.rego # IAM security policies
+│   │   ├── security.rego # General security policies
+│   │   ├── terraform.rego # Terraform policies
+│   │   └── kubernetes.rego # Kubernetes policies
+│   ├── .checkov.yml      # Checkov configuration
+│   ├── .gitleaks.toml    # Gitleaks configuration
+│   └── SECURITY.md       # Security policies
+├── docs/                 # Documentation
+│   ├── SCANNERS.md       # Security scanning guide
+│   ├── TEAM_SETUP.md     # Team onboarding guide
+│   ├── CONTRIBUTING.md   # Contribution guidelines
+│   └── CHANGELOG.md      # Project changelog
+├── infra/                # Infrastructure as Code (Terraform)
+│   └── README.md         # Infrastructure setup guide
+├── k8s/                  # Kubernetes manifests
+│   └── README.md         # Kubernetes deployment guide
+├── scripts/              # Utility scripts
+│   └── setup.sh          # Setup script
+├── src/                  # React frontend
 │   ├── components/       # React components
-│   ├── hooks/            # Custom hooks
-│   └── lib/              # Frontend utilities
-├── docker-compose.yml    # Docker orchestration
-├── Dockerfile           # Container definition
-└── requirements.txt     # Python dependencies
+│   │   ├── ui/           # Reusable UI components
+│   │   └── figma/        # Figma design components
+│   ├── hooks/            # Custom React hooks
+│   ├── guidelines/       # Development guidelines
+│   ├── styles/           # CSS styles
+│   ├── App.tsx           # Main React app
+│   ├── main.tsx          # React entry point
+│   └── index.css         # Global styles
+├── data/                 # Application data directory
+├── logs/                 # Application logs directory
+├── docker-compose.yml    # Docker orchestration with security scanners
+├── Dockerfile           # Multi-stage container definition
+├── Makefile             # DevSecOps scanning commands
+├── requirements.txt     # Python dependencies
+├── package.json         # Node.js dependencies
+├── tsconfig.json        # TypeScript configuration
+├── vite.config.ts       # Vite build configuration
+└── env.example          # Environment variables template
 ```
 
 ## 🔧 Configuration
@@ -276,10 +369,15 @@ docker-compose exec app pytest --cov=backend
 
 ## 📚 Documentation
 
-- [Team Setup Guide](TEAM_SETUP.md) - Complete team onboarding
-- [API Documentation](docs/api.md) - API endpoint reference
-- [AWS Integration Guide](docs/aws-integration.md) - AWS service setup
-- [Deployment Guide](docs/deployment.md) - Production deployment
+- [Team Setup Guide](docs/TEAM_SETUP.md) - Complete team onboarding
+- [Security Scanning Guide](docs/SCANNERS.md) - DevSecOps scanning setup
+- [Contributing Guide](docs/CONTRIBUTING.md) - How to contribute to the project
+- [Security Policies](DevSecOps/SECURITY.md) - Security policies and practices
+- [Infrastructure Guide](infra/README.md) - Infrastructure as Code setup
+- [Kubernetes Guide](k8s/README.md) - Kubernetes deployment guide
+- [API Documentation](docs/api.md) - API endpoint reference (coming soon)
+- [AWS Integration Guide](docs/aws-integration.md) - AWS service setup (coming soon)
+- [Deployment Guide](docs/deployment.md) - Production deployment (coming soon)
 
 ## 🤝 Contributing
 

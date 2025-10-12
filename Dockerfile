@@ -48,6 +48,15 @@ COPY --from=frontend-builder /app/frontend/build ./static
 # Create necessary directories
 RUN mkdir -p logs data/uploads
 
+# Create a non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set proper ownership of directories
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
 # Expose port
 EXPOSE 5000
 

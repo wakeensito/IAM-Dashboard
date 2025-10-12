@@ -18,7 +18,7 @@ Welcome Team ! ! !
 # 2. Clone YOUR fork
 git clone https://github.com/YOUR-USERNAME/IAM-Dashboard.git
 
-cd "IAM-Dashboard"
+cd IAM-Dashboard
 
 # 3. Add upstream remote
 git remote add upstream https://github.com/wakeensito/IAM-Dashboard.git
@@ -37,6 +37,33 @@ That's it! The dashboard will be available at:
 - **Main Dashboard**: http://localhost:5001
 - **Grafana**: http://localhost:3000 (admin/admin)
 - **Prometheus**: http://localhost:9090
+
+## 🔍 DevSecOps Security Scanning
+
+### Quick Security Scan
+
+```bash
+# Run all security scans (OPA + Checkov + Gitleaks)
+make scan
+
+# Run individual scans
+make opa         # OPA policy validation
+make checkov     # Infrastructure security scan
+make gitleaks    # Secret detection scan
+```
+
+### Prerequisites
+- Docker and Docker Compose installed (already required for the project)
+- No additional tool installation needed
+
+### Troubleshooting
+```bash
+# Check Docker status
+make check-docker
+
+# Clean up containers
+make clean-scans
+```
 
 ## 🏗️ Architecture Overview
 
@@ -77,22 +104,48 @@ docker-compose down
 ## 📁 Project Structure
 
 ```
-Dashboard/
-├── backend/                 # Flask API backend
-│   ├── api/                # API endpoints
-│   ├── services/          # Business logic
-│   ├── models/            # Database models
-│   └── utils/             # Utility functions
-├── config/                # Configuration files
+IAM-Dashboard/
+├── .github/              # GitHub configuration
+│   ├── workflows/        # GitHub Actions workflows
+│   │   └── devsecops-scan.yml # Security scanning pipeline
+│   └── dependabot.yml    # Automated dependency updates
+├── backend/              # Flask API backend
+│   ├── api/              # API endpoints
+│   ├── services/         # Business logic
+│   ├── sql/              # Database initialization
+│   └── app.py            # Flask application
+├── config/               # Configuration files
 │   ├── grafana/          # Grafana configuration
 │   └── prometheus/       # Prometheus configuration
-├── src/                   # React frontend
+├── DevSecOps/            # Security scanning configuration
+│   ├── opa-policies/     # OPA policy files
+│   ├── .checkov.yml      # Checkov configuration
+│   ├── .gitleaks.toml    # Gitleaks configuration
+│   └── SECURITY.md       # Security policies
+├── docs/                 # Documentation
+│   ├── SCANNERS.md       # Security scanning guide
+│   ├── TEAM_SETUP.md     # Team onboarding guide
+│   ├── CONTRIBUTING.md   # Contribution guidelines
+│   └── CHANGELOG.md      # Project changelog
+├── infra/                # Infrastructure as Code (Terraform)
+│   └── README.md         # Infrastructure setup guide
+├── k8s/                  # Kubernetes manifests
+│   └── README.md         # Kubernetes deployment guide
+├── scripts/              # Utility scripts
+│   └── setup.sh          # Setup script
+├── src/                  # React frontend
 │   ├── components/       # React components
 │   ├── hooks/            # Custom hooks
-│   └── lib/              # Frontend utilities
-├── docker-compose.yml    # Docker orchestration
-├── Dockerfile           # Container definition
-└── requirements.txt     # Python dependencies
+│   ├── guidelines/       # Development guidelines
+│   └── styles/           # CSS styles
+├── data/                 # Application data directory
+├── logs/                 # Application logs directory
+├── docker-compose.yml    # Docker orchestration with security scanners
+├── Dockerfile           # Multi-stage container definition
+├── Makefile             # DevSecOps scanning commands
+├── requirements.txt     # Python dependencies
+├── package.json         # Node.js dependencies
+└── env.example          # Environment variables template
 ```
 
 ## 🔐 AWS Integration Setup
@@ -208,6 +261,21 @@ docker-compose exec app pytest tests/test_aws_service.py
 docker-compose exec app pytest --cov=backend
 ```
 
+### Security Scanning
+
+```bash
+# Run all security scans
+make scan
+
+# Run individual scans
+make opa         # OPA policy validation
+make checkov     # Infrastructure security scan
+make gitleaks    # Secret detection scan
+
+# Check scan results
+make show-results
+```
+
 ## 🔄 CI/CD Pipeline
 
 ### GitHub Actions (Recommended)
@@ -271,8 +339,9 @@ jobs:
 
 1. **Set up your development environment** using the commands above
 2. **Configure AWS credentials** for your team
-3. **Explore the dashboard** and understand the current features
-4. **Plan your integrations** with AWS services
-5. **Start building** your cybersecurity features!
+3. **Run security scans** with `make scan` to understand the DevSecOps setup
+4. **Explore the dashboard** and understand the current features
+5. **Plan your integrations** with AWS services
+6. **Start building** your cybersecurity features!
 
 Happy coding! 🚀
