@@ -26,11 +26,16 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies (robust, noninteractive)
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update -o Acquire::Retries=3 -o Acquire::ForceIPv4=true && \
+        apt-get install -y --no-install-recommends \
+            ca-certificates \
+            apt-utils \
+            build-essential \
+            gcc \
+            g++ \
+        && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
 COPY requirements.txt .
