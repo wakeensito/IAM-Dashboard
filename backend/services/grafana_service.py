@@ -4,6 +4,7 @@ Grafana Service for data visualization and monitoring
 
 import requests
 import logging
+import os
 from typing import Dict, List, Optional
 import json
 
@@ -13,10 +14,10 @@ class GrafanaService:
     """Service for Grafana integrations"""
     
     def __init__(self):
-        self.base_url = "http://grafana:3000"
+        self.base_url = os.environ.get('GRAFANA_URL', 'http://grafana:3000')
         self.api_key = None
-        self.username = "admin"
-        self.password = "admin"
+        self.username = os.environ.get('GRAFANA_USERNAME', 'admin')
+        self.password = os.environ.get('GRAFANA_PASSWORD', 'admin')
         
     def authenticate(self) -> bool:
         """Authenticate with Grafana"""

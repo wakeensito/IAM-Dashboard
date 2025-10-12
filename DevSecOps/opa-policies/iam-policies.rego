@@ -40,12 +40,21 @@ deny[msg] {
     msg := "IAM policy version must be 2012-10-17"
 }
 
+# helper: statement requires MFA for AssumeRole (checks StringEquals["aws:MultiFactorAuthPresent"])
+mfa_required(stmt) {
+    stmt.Condition
+    stmt.Condition.StringEquals
+    stmt.Condition.StringEquals["aws:MultiFactorAuthPresent"]
+}
+
 # Deny if IAM policy allows AssumeRole without MFA
 deny[msg] {
     input.resource_type == "aws_iam_policy"
-    input.resource.Statement[_].Effect == "Allow"
-    input.resource.Statement[_].Action[_] == "sts:AssumeRole"
-    not input.resource.Statement[_].Condition.StringEquals."aws:MultiFactorAuthPresent"
+    some i, j
+    stmt := input.resource.Statement[i]
+    stmt.Effect == "Allow"
+    stmt.Action[j] == "sts:AssumeRole"
+    not mfa_required(stmt)
     msg := "AssumeRole action must require MFA"
 }
 

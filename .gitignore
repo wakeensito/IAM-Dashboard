@@ -143,3 +143,21 @@ prometheus_data/
 grafana_data/
 redis_data/
 postgres_data/
+
+# DevSecOps Scanner Artifacts
+.gitleaks.toml
+checkov-results.json
+gitleaks-results.json
+opa-results.json
+*.sarif
+scanner-reports/
+security-reports/
+
+# Terraform Plan Files
+*.tfplan
+*.tfplan.*
+
+# Build outputs (already covered but being explicit)
+dist/
+build/
+.next/

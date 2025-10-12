@@ -93,6 +93,46 @@ services:
       - cybersecurity-network
     restart: unless-stopped
 
+  # OPA Policy Scanner
+  opa-scanner:
+    image: openpolicyagent/opa:0.58.0
+    container_name: opa-scanner
+    volumes:
+      - .:/workspace:ro
+      - ./DevSecOps/opa-policies:/policies:ro
+    working_dir: /workspace
+    command: test /policies/ --verbose
+    profiles:
+      - scanners
+    networks:
+      - cybersecurity-network
+
+  # Checkov Infrastructure Scanner
+  checkov-scanner:
+    image: bridgecrew/checkov:3.1.25
+    container_name: checkov-scanner
+    volumes:
+      - .:/workspace:ro
+    working_dir: /workspace
+    command: -d /workspace --framework terraform --framework dockerfile --output json --output-file-path /tmp/checkov-results.json --quiet --skip-check CKV_AWS_1,CKV_AWS_2,CKV_AWS_3
+    profiles:
+      - scanners
+    networks:
+      - cybersecurity-network
+
+  # Gitleaks Secret Scanner
+  gitleaks-scanner:
+    image: zricethezav/gitleaks:v8.18.0
+    container_name: gitleaks-scanner
+    volumes:
+      - .:/workspace:ro
+    working_dir: /workspace
+    command: detect --config /workspace/DevSecOps/.gitleaks.toml --source /workspace --report-format json --report-path /tmp/gitleaks-results.json
+    profiles:
+      - scanners
+    networks:
+      - cybersecurity-network
+
 volumes:
   postgres_data:
   redis_data:
