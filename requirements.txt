@@ -41,7 +41,7 @@ pydantic-settings==2.1.0
 
 # API documentation
 flask-restx==1.3.0
-marshmallow==3.20.2
+marshmallow==4.0.1
 
 # Utilities
 click==8.1.7
