@@ -46,5 +46,5 @@ marshmallow==3.20.2
 # Utilities
 click==8.1.7
 python-dateutil==2.8.2
-pytz==2023.3
+pytz==2025.2
 psutil==5.9.8
