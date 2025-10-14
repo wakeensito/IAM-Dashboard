@@ -26,16 +26,8 @@ help: ## Show available commands
 # Check if Docker is available
 check-docker: ## Check if Docker is available
 	@echo "Checking Docker availability..."
-	@if ! command -v docker >/dev/null 2>&1; then \
-		echo "❌ Docker is not installed or not in PATH"; \
-		echo "Please install Docker: https://docs.docker.com/get-docker/"; \
-		exit 1; \
-	fi
-	@if ! command -v docker-compose >/dev/null 2>&1; then \
-		echo "❌ Docker Compose is not installed or not in PATH"; \
-		echo "Please install Docker Compose: https://docs.docker.com/compose/install/"; \
-		exit 1; \
-	fi
+	@docker --version >nul 2>&1 || (echo "❌ Docker is not installed or not in PATH" && echo "Please install Docker: https://docs.docker.com/get-docker/" && exit 1)
+	@docker-compose --version >nul 2>&1 || (echo "❌ Docker Compose is not installed or not in PATH" && echo "Please install Docker Compose: https://docs.docker.com/compose/install/" && exit 1)
 	@echo "✅ Docker and Docker Compose are available"
 	@docker --version
 	@docker-compose --version
@@ -60,41 +52,24 @@ scan: check-docker ## Run all security scans (OPA + Checkov + Gitleaks)
 # Run OPA policy validation
 opa: check-docker ## Run OPA policy validation
 	@echo "🔍 Running OPA policy validation..."
-	@docker-compose --profile scanners run --rm opa-scanner
-	@if [ $$? -eq 0 ]; then \
-		echo "✅ OPA policy validation passed"; \
-	else \
-		echo "❌ OPA policy validation failed"; \
-		exit 1; \
-	fi
+	@docker-compose --profile scanners run --rm opa-scanner && echo "✅ OPA policy validation passed" || (echo "❌ OPA policy validation failed" && exit 1)
 
 # Run Checkov infrastructure scan
 checkov: check-docker ## Run Checkov infrastructure scan
 	@echo "🔍 Running Checkov infrastructure scan..."
-	@docker-compose --profile scanners run --rm checkov-scanner
-	@if [ $$? -eq 0 ]; then \
-		echo "✅ Checkov infrastructure scan passed"; \
-	else \
-		echo "❌ Checkov infrastructure scan failed"; \
-		exit 1; \
-	fi
+	@docker-compose --profile scanners run --rm checkov-scanner && echo "✅ Checkov infrastructure scan passed" || (echo "❌ Checkov infrastructure scan failed" && exit 1)
 
 # Run Gitleaks secret detection
 gitleaks: check-docker ## Run Gitleaks secret detection
 	@echo "🔍 Running Gitleaks secret detection..."
-	@docker-compose --profile scanners run --rm gitleaks-scanner
-	@if [ $$? -eq 0 ]; then \
-		echo "✅ Gitleaks secret detection passed"; \
-	else \
-		echo "❌ Gitleaks secret detection found secrets"; \
-		exit 1; \
-	fi
+	@docker-compose --profile scanners run --rm gitleaks-scanner && echo "✅ Gitleaks secret detection passed" || (echo "❌ Gitleaks secret detection found secrets" && exit 1)
 
 # Clean up scan results and containers
 clean-scans: ## Clean up scan results and containers
 	@echo "🧹 Cleaning up scan results and containers..."
-	@docker-compose --profile scanners down --remove-orphans 2>/dev/null || true
-	@rm -f checkov-results.json gitleaks-results.json 2>/dev/null || true
+	@docker-compose --profile scanners down --remove-orphans 2>nul || echo "No containers to clean"
+	@if exist checkov-results.json del checkov-results.json 2>nul || echo "No checkov results to clean"
+	@if exist gitleaks-results.json del gitleaks-results.json 2>nul || echo "No gitleaks results to clean"
 	@echo "✅ Cleanup completed"
 
 # Quick scan for pre-commit checks
@@ -124,15 +99,9 @@ dev-setup: check-docker ## Set up development environment
 # Show scan results
 show-results: ## Show recent scan results
 	@echo "📊 Recent scan results:"
-	@if [ -f "checkov-results.json" ]; then \
-		echo "📁 Checkov results: checkov-results.json"; \
-	fi
-	@if [ -f "gitleaks-results.json" ]; then \
-		echo "📁 Gitleaks results: gitleaks-results.json"; \
-	fi
-	@if [ ! -f "checkov-results.json" ] && [ ! -f "gitleaks-results.json" ]; then \
-		echo "📁 No scan results found. Run 'make scan' first."; \
-	fi
+	@if exist checkov-results.json (echo "📁 Checkov results: checkov-results.json") else echo "No Checkov results found"
+	@if exist gitleaks-results.json (echo "📁 Gitleaks results: gitleaks-results.json") else echo "No Gitleaks results found"
+	@if not exist checkov-results.json if not exist gitleaks-results.json echo "📁 No scan results found. Run 'make scan' first."
 
 # Status check
 status: check-docker ## Show current status
