@@ -101,7 +101,7 @@ services:
       - .:/workspace:ro
       - ./DevSecOps/opa-policies:/policies:ro
     working_dir: /workspace
-    command: test /policies/ --verbose
+    command: test /policies/ --format json
     profiles:
       - scanners
     networks:
@@ -114,7 +114,7 @@ services:
     volumes:
       - .:/workspace:ro
     working_dir: /workspace
-    command: -d /workspace --framework terraform --framework dockerfile --output json --output-file-path /tmp/checkov-results.json --quiet --skip-check CKV_AWS_1,CKV_AWS_2,CKV_AWS_3
+    command: -d /workspace --framework terraform --framework dockerfile --output json --quiet --skip-check CKV_AWS_1,CKV_AWS_2,CKV_AWS_3
     profiles:
       - scanners
     networks:
@@ -127,7 +127,7 @@ services:
     volumes:
       - .:/workspace:ro
     working_dir: /workspace
-    command: detect --config /workspace/DevSecOps/.gitleaks.toml --source /workspace --no-git --report-format json --report-path /tmp/gitleaks-results.json
+    command: detect --config /workspace/DevSecOps/.gitleaks.toml --source /workspace --no-git --report-format json
     profiles:
       - scanners
     networks:
