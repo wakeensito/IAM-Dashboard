@@ -52,17 +52,17 @@ scan: check-docker ## Run all security scans (OPA + Checkov + Gitleaks)
 # Run OPA policy validation
 opa: check-docker ## Run OPA policy validation
 	@echo "🔍 Running OPA policy validation..."
-	@docker-compose --profile scanners run --rm opa-scanner && echo "✅ OPA policy validation passed" || (echo "❌ OPA policy validation failed" && exit 1)
+	@docker-compose --profile scanners run --rm opa-scanner > scanner-results/opa-results.json && echo "✅ OPA policy validation passed" || (echo "❌ OPA policy validation failed" && exit 1)
 
 # Run Checkov infrastructure scan
 checkov: check-docker ## Run Checkov infrastructure scan
 	@echo "🔍 Running Checkov infrastructure scan..."
-	@docker-compose --profile scanners run --rm checkov-scanner && echo "✅ Checkov infrastructure scan passed" || (echo "❌ Checkov infrastructure scan failed" && exit 1)
+	@docker-compose --profile scanners run --rm checkov-scanner > scanner-results/checkov-results.json && echo "✅ Checkov infrastructure scan passed" || (echo "❌ Checkov infrastructure scan failed" && exit 1)
 
 # Run Gitleaks secret detection
 gitleaks: check-docker ## Run Gitleaks secret detection
 	@echo "🔍 Running Gitleaks secret detection..."
-	@docker-compose --profile scanners run --rm gitleaks-scanner && echo "✅ Gitleaks secret detection passed" || (echo "❌ Gitleaks secret detection found secrets" && exit 1)
+	@docker-compose --profile scanners run --rm gitleaks-scanner > scanner-results/gitleaks-results.json 2>&1 && echo "✅ Gitleaks secret detection passed" || (echo "❌ Gitleaks secret detection found secrets" && exit 1)
 
 # Clean up scan results and containers
 clean-scans: ## Clean up scan results and containers
