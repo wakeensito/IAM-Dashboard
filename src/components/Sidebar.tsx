@@ -27,7 +27,7 @@ interface SidebarProps {
 
 const navItems = [
   { id: "dashboard", label: "Security Overview", icon: LayoutDashboard },
-  { id: "iam-security", label: "IAM & Access Control", icon: Users },
+  { id: "iam-security", label: "Checkov Scan", icon: Users },
   { id: "ec2-security", label: "EC2 & Compute", icon: Cloud },
   { id: "s3-security", label: "S3 & Storage", icon: HardDrive },
   { id: "network-security", label: "VPC & Networking", icon: Network },
