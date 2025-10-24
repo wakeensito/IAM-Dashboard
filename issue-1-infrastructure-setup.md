@@ -4,7 +4,7 @@
 
 **Priority:** High  
 **Difficulty:** Medium  
-**Estimated Time:** 4-6 hours  
+**Estimated Time:** 1-2 hours  
 **Skills Needed:** Terraform, AWS S3, CloudFront, GitHub Actions
 
 ---
