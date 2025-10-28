@@ -13,9 +13,14 @@ This directory is set up for future infrastructure management using Terraform. C
 
 ## Current Status
 
-⚠️ **This directory is currently empty and not used for deployment.**
+✅ **DynamoDB tables are configured and ready for deployment**
 
-The IAM Dashboard is currently deployed using Docker Compose for local development and testing.
+The IAM Dashboard infrastructure includes:
+- **DynamoDB tables** for scan results, IAM findings, and compliance status
+- **Terraform configuration** ready for deployment
+- **Python service** for DynamoDB interactions
+
+See [DYNAMODB_SETUP.md](./DYNAMODB_SETUP.md) for deployment instructions.
 
 ## Future Plans
 
