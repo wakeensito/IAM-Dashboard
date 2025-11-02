@@ -49,11 +49,3 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "scan_results" {
   }
 }
 
-# Output the bucket name
-output "bucket_name" {
-  value = aws_s3_bucket.scan_results.bucket
-}
-
-output "bucket_arn" {
-  value = aws_s3_bucket.scan_results.arn
-}
