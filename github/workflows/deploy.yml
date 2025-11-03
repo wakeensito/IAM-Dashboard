@@ -1,0 +1,73 @@
+name: Deploy IAM Dashboard
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::562559071105:role/IAMDash-Deployer-Prod
+        aws-region: us-east-1
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+    
+    - name: Terraform Init
+      run: |
+        cd infrastructure
+        terraform init
+    
+    - name: Terraform Plan
+      run: |
+        cd infrastructure
+        terraform plan
+    
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main'
+      run: |
+        cd infrastructure
+        terraform apply -auto-approve
+    
+    - name: Build and Deploy Frontend
+      if: github.ref == 'refs/heads/main'
+      run: |
+        # Build React app
+        npm ci
+        npm run build
+        
+        # Upload to S3
+        aws s3 sync build/ s3://iam-dashboard-frontend-[suffix]/
+        
+        # Invalidate CloudFront cache
+        aws cloudfront create-invalidation \
+          --distribution-id [distribution-id] \
+          --paths "/*"
+    
+    - name: Deploy Lambda Function
+      if: github.ref == 'refs/heads/main'
+      run: |
+        # Package Lambda function
+        cd lambda
+        zip lambda_function.zip lambda_function.py
+        
+        # Update Lambda function
+        aws lambda update-function-code \
+          --function-name iam-dashboard-api \
+          --zip-file fileb://lambda_function.zip
