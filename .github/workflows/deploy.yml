@@ -21,7 +21,9 @@ jobs:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: arn:aws:iam::562559071105:role/IAMDash-Deployer-Prod
+        # AWS_ROLE_ARN secret must be configured in Repository Settings → Secrets
+        # Format: arn:aws:iam::ACCOUNT_ID:role/IAMDash-Deployer-Prod
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
         aws-region: us-east-1
 
     - name: Setup Terraform
