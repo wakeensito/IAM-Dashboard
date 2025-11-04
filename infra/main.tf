@@ -6,6 +6,17 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  # Remote backend configuration - uses S3 for state storage
+  # This allows GitHub Actions and local development to share the same state
+  backend "s3" {
+    bucket         = "iam-dashboard-project"
+    key            = "terraform/state/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    # DynamoDB table for state locking (optional but recommended)
+    # dynamodb_table = "terraform-state-lock"
+  }
 }
 
 provider "aws" {
