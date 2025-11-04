@@ -64,7 +64,9 @@ resource "aws_iam_role_policy" "github_actions_s3_policy" {
         # ListBucket permission (on bucket only, not bucket/*)
         Effect = "Allow"
         Action = [
-          "s3:ListBucket"
+          "s3:ListBucket",
+          "s3:GetBucketPolicy",
+          "s3:GetBucketLocation"
         ]
         Resource = [
           "arn:aws:s3:::${var.frontend_s3_bucket_name}",
@@ -112,7 +114,7 @@ resource "aws_iam_role_policy" "github_actions_lambda_policy" {
   })
 }
 
-# Policy for DynamoDB access (for scan results)
+# Policy for DynamoDB access (for scan results and Terraform state)
 resource "aws_iam_role_policy" "github_actions_dynamodb_policy" {
   name = "${var.github_actions_role_name}-dynamodb-policy"
   role = aws_iam_role.github_actions_deployer.id
@@ -123,6 +125,7 @@ resource "aws_iam_role_policy" "github_actions_dynamodb_policy" {
       {
         Effect = "Allow"
         Action = [
+          "dynamodb:DescribeTable",
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
@@ -177,6 +180,31 @@ resource "aws_iam_role_policy" "github_actions_apigateway_policy" {
           "apigateway:DELETE"
         ]
         Resource = "arn:aws:apigateway:${var.aws_region}::/restapis/*"
+      }
+    ]
+  })
+}
+
+# Policy for IAM read access (needed for Terraform to read role state)
+resource "aws_iam_role_policy" "github_actions_iam_read_policy" {
+  name = "${var.github_actions_role_name}-iam-read-policy"
+  role = aws_iam_role.github_actions_deployer.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:GetRole",
+          "iam:GetRolePolicy",
+          "iam:ListRolePolicies",
+          "iam:ListAttachedRolePolicies"
+        ]
+        Resource = [
+          "arn:aws:iam::*:role/${var.github_actions_role_name}",
+          "arn:aws:iam::*:role/iam-dashboard-*"
+        ]
       }
     ]
   })
