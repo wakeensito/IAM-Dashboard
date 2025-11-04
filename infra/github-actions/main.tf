@@ -1,0 +1,206 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+
+# OIDC Provider for GitHub Actions (already exists, reference it)
+data "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+}
+
+# IAM Role for GitHub Actions
+resource "aws_iam_role" "github_actions_deployer" {
+  name = var.github_actions_role_name
+  
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = data.aws_iam_openid_connect_provider.github.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo_owner}/${var.github_repo_name}:*"
+          }
+        }
+      }
+    ]
+  })
+  
+  tags = {
+    Name      = var.github_actions_role_name
+    Project   = var.project_name
+    Env       = var.environment
+    ManagedBy = "terraform"
+  }
+}
+
+# Policy for S3 access (frontend deployment and scan results)
+resource "aws_iam_role_policy" "github_actions_s3_policy" {
+  name = "${var.github_actions_role_name}-s3-policy"
+  role = aws_iam_role.github_actions_deployer.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.frontend_s3_bucket_name}",
+          "arn:aws:s3:::${var.frontend_s3_bucket_name}/*",
+          "arn:aws:s3:::${var.scan_results_s3_bucket_name}",
+          "arn:aws:s3:::${var.scan_results_s3_bucket_name}/*"
+        ]
+      }
+    ]
+  })
+}
+
+# Policy for Lambda function updates
+resource "aws_iam_role_policy" "github_actions_lambda_policy" {
+  name = "${var.github_actions_role_name}-lambda-policy"
+  role = aws_iam_role.github_actions_deployer.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:UpdateFunctionCode",
+          "lambda:GetFunction",
+          "lambda:ListFunctions"
+        ]
+        Resource = [
+          "arn:aws:lambda:${var.aws_region}:*:function:${var.lambda_function_name}",
+          "arn:aws:lambda:${var.aws_region}:*:function:${var.lambda_function_name}:*"
+        ]
+      }
+    ]
+  })
+}
+
+# Policy for DynamoDB access (for scan results)
+resource "aws_iam_role_policy" "github_actions_dynamodb_policy" {
+  name = "${var.github_actions_role_name}-dynamodb-policy"
+  role = aws_iam_role.github_actions_deployer.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          "arn:aws:dynamodb:${var.aws_region}:*:table/${var.dynamodb_table_name}",
+          "arn:aws:dynamodb:${var.aws_region}:*:table/${var.dynamodb_table_name}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
+# Policy for CloudFront cache invalidation
+resource "aws_iam_role_policy" "github_actions_cloudfront_policy" {
+  name = "${var.github_actions_role_name}-cloudfront-policy"
+  role = aws_iam_role.github_actions_deployer.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateInvalidation",
+          "cloudfront:GetInvalidation",
+          "cloudfront:ListInvalidations"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Policy for API Gateway (if needed for deployment)
+resource "aws_iam_role_policy" "github_actions_apigateway_policy" {
+  name = "${var.github_actions_role_name}-apigateway-policy"
+  role = aws_iam_role.github_actions_deployer.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "apigateway:GET",
+          "apigateway:POST",
+          "apigateway:PUT",
+          "apigateway:PATCH",
+          "apigateway:DELETE"
+        ]
+        Resource = "arn:aws:apigateway:${var.aws_region}::/restapis/*"
+      }
+    ]
+  })
+}
+
+# Policy for Terraform state management (S3 backend) - Only created if bucket/table are specified
+resource "aws_iam_role_policy" "github_actions_terraform_state_policy" {
+  count = var.terraform_state_bucket != "" && var.terraform_state_lock_table != "" ? 1 : 0
+  name = "${var.github_actions_role_name}-terraform-state-policy"
+  role = aws_iam_role.github_actions_deployer.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.terraform_state_bucket}",
+          "arn:aws:s3:::${var.terraform_state_bucket}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:*:table/${var.terraform_state_lock_table}"
+      }
+    ]
+  })
+}
+

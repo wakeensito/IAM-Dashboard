@@ -1,0 +1,103 @@
+name: Deploy IAM Dashboard
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        # AWS_ROLE_ARN secret must be configured in Repository Settings → Secrets
+        # Format: arn:aws:iam::ACCOUNT_ID:role/IAMDash-Deployer-Prod
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: us-east-1
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+
+    - name: Terraform Init
+      run: |
+        cd infra
+        terraform init
+
+    - name: Terraform Plan
+      run: |
+        cd infra
+        terraform plan
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main'
+      run: |
+        cd infra
+        terraform apply -auto-approve
+
+    - name: Get Terraform Outputs
+      id: terraform-outputs
+      if: github.ref == 'refs/heads/main'
+      run: |
+        cd infra
+        echo "lambda_function=$(terraform output -raw lambda_function_name 2>/dev/null || echo 'iam-dashboard-scanner')" >> $GITHUB_OUTPUT
+        echo "s3_bucket=$(terraform output -raw s3_bucket_name 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+        echo "cloudfront_id=$(terraform output -raw cloudfront_distribution_id 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+
+    - name: Setup Node.js
+      if: github.ref == 'refs/heads/main'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Build and Deploy Frontend
+      if: github.ref == 'refs/heads/main'
+      run: |
+        npm ci
+        npm run build
+        S3_BUCKET="${{ steps.terraform-outputs.outputs.s3_bucket }}"
+        if [ -z "$S3_BUCKET" ]; then
+          echo "⚠️  No S3 bucket found in Terraform outputs, using default pattern"
+          S3_BUCKET="iam-dashboard-frontend-$(date +%s)"
+        fi
+        echo "📤 Uploading build files to s3://$S3_BUCKET/"
+        aws s3 sync build/ s3://$S3_BUCKET/ --delete
+        CLOUDFRONT_ID="${{ steps.terraform-outputs.outputs.cloudfront_id }}"
+        if [ -n "$CLOUDFRONT_ID" ]; then
+          echo "🔄 Invalidating CloudFront cache for distribution $CLOUDFRONT_ID"
+          aws cloudfront create-invalidation \
+            --distribution-id "$CLOUDFRONT_ID" \
+            --paths "/*"
+        else
+          echo "ℹ️  No CloudFront distribution found, skipping cache invalidation"
+        fi
+
+    - name: Deploy Lambda Function
+      if: github.ref == 'refs/heads/main'
+      run: |
+        LAMBDA_FUNCTION_NAME="${{ steps.terraform-outputs.outputs.lambda_function }}"
+        if [ -z "$LAMBDA_FUNCTION_NAME" ]; then
+          echo "⚠️  No Lambda function name found in Terraform outputs, using default: iam-dashboard-scanner"
+          LAMBDA_FUNCTION_NAME="iam-dashboard-scanner"
+        fi
+        echo "📦 Packaging Lambda function from backend/..."
+        cd backend
+        zip -r lambda_function.zip . -x "*.git*" -x "__pycache__/*"
+        echo "🚀 Updating Lambda function $LAMBDA_FUNCTION_NAME"
+        aws lambda update-function-code \
+          --function-name "$LAMBDA_FUNCTION_NAME" \
+          --zip-file fileb://lambda_function.zip
+
