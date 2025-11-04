@@ -52,7 +52,7 @@ resource "aws_iam_role" "github_actions_deployer" {
   }
 }
 
-# Policy for S3 access (frontend deployment and scan results)
+# Policy for S3 access (frontend deployment, scan results, and Terraform state)
 resource "aws_iam_role_policy" "github_actions_s3_policy" {
   name = "${var.github_actions_role_name}-s3-policy"
   role = aws_iam_role.github_actions_deployer.id
@@ -61,17 +61,26 @@ resource "aws_iam_role_policy" "github_actions_s3_policy" {
     Version = "2012-10-17"
     Statement = [
       {
+        # ListBucket permission (on bucket only, not bucket/*)
         Effect = "Allow"
         Action = [
-          "s3:ListBucket",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.frontend_s3_bucket_name}",
+          "arn:aws:s3:::${var.scan_results_s3_bucket_name}"
+        ]
+      },
+      {
+        # Object operations (on bucket/*)
+        Effect = "Allow"
+        Action = [
           "s3:GetObject",
           "s3:PutObject",
           "s3:DeleteObject"
         ]
         Resource = [
-          "arn:aws:s3:::${var.frontend_s3_bucket_name}",
           "arn:aws:s3:::${var.frontend_s3_bucket_name}/*",
-          "arn:aws:s3:::${var.scan_results_s3_bucket_name}",
           "arn:aws:s3:::${var.scan_results_s3_bucket_name}/*"
         ]
       }
