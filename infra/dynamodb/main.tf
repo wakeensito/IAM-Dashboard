@@ -45,16 +45,6 @@ resource "aws_dynamodb_table" "scan_results" {
       hash_key        = "scanner_type"
       range_key       = "timestamp"
       projection_type = "ALL"
-
-      attribute {
-        name = "scanner_type"
-        type = "S"
-      }
-
-      attribute {
-        name = "timestamp"
-        type = "S"
-      }
     }
   }
 

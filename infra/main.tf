@@ -1,0 +1,70 @@
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+
+# S3 Module
+module "s3" {
+  source = "./s3"
+  
+  aws_region     = var.aws_region
+  environment    = var.environment
+  project_name   = var.project_name
+  s3_bucket_name = var.s3_bucket_name
+}
+
+# DynamoDB Module
+module "dynamodb" {
+  source = "./dynamodb"
+  
+  aws_region            = var.aws_region
+  environment           = var.environment
+  project_name          = var.project_name
+  dynamodb_table_name   = var.dynamodb_table_name
+}
+
+# Lambda Module
+module "lambda" {
+  source = "./lambda"
+  
+  aws_region            = var.aws_region
+  environment           = var.environment
+  project_name          = var.project_name
+  lambda_function_name  = var.lambda_function_name
+  dynamodb_table_name   = var.dynamodb_table_name
+  s3_bucket_name        = var.s3_bucket_name
+}
+
+# API Gateway Module
+module "api_gateway" {
+  source = "./api-gateway"
+  
+  aws_region        = var.aws_region
+  environment       = var.environment
+  project_name      = var.project_name
+}
+
+# GitHub Actions OIDC Module
+module "github_actions" {
+  source = "./github-actions"
+  
+  aws_region                = var.aws_region
+  environment               = var.environment
+  project_name              = var.project_name
+  github_repo_owner         = var.github_repo_owner
+  github_repo_name          = var.github_repo_name
+  frontend_s3_bucket_name   = var.s3_bucket_name
+  scan_results_s3_bucket_name = var.scan_results_s3_bucket_name
+  lambda_function_name      = var.lambda_function_name
+  dynamodb_table_name       = var.dynamodb_table_name
+}
+
