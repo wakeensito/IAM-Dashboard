@@ -52,25 +52,81 @@ resource "aws_apigatewayv2_stage" "default" {
   }
 }
 
-# Placeholder: Integration will be added when Lambda is ready
-# This creates a placeholder structure for the 9 API endpoints
-# Actual integrations will be added when Lambda function is deployed
+# Data source to get Lambda function
+data "aws_lambda_function" "scanner" {
+  function_name = "iam-dashboard-scanner"
+}
 
-output "api_endpoints_placeholder" {
-  description = "Placeholder for 9 API endpoints to be implemented"
-  value = {
-    endpoints = [
-      "POST   /scan/security-hub",
-      "POST   /scan/guardduty",
-      "POST   /scan/config",
-      "POST   /scan/inspector",
-      "POST   /scan/macie",
-      "POST   /scan/iam",
-      "POST   /scan/ec2",
-      "POST   /scan/s3",
-      "POST   /scan/full"
-    ]
-    note = "These endpoints will be configured once Lambda function is deployed and ready for integration"
-  }
+# Lambda integration
+resource "aws_apigatewayv2_integration" "lambda" {
+  api_id           = aws_apigatewayv2_api.api.id
+  integration_type = "AWS_PROXY"
+  integration_uri  = data.aws_lambda_function.scanner.invoke_arn
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
+# Permission for API Gateway to invoke Lambda
+resource "aws_lambda_permission" "api_gateway" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = data.aws_lambda_function.scanner.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
+}
+
+# Routes for all 9 security scan endpoints
+resource "aws_apigatewayv2_route" "security_hub" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "POST /scan/security-hub"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "guardduty" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "POST /scan/guardduty"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "config" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "POST /scan/config"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "inspector" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "POST /scan/inspector"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "macie" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "POST /scan/macie"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "iam" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "POST /scan/iam"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "ec2" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "POST /scan/ec2"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "s3" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "POST /scan/s3"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "full" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "POST /scan/full"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
