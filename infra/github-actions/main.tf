@@ -70,7 +70,13 @@ resource "aws_iam_role_policy" "github_actions_s3_policy" {
           "s3:GetBucketAcl",
           "s3:GetBucketCORS",
           "s3:GetBucketWebsite",
-          "s3:GetBucketVersioning"
+          "s3:GetBucketVersioning",
+          "s3:GetBucketEncryption",
+          "s3:GetBucketPublicAccessBlock",
+          "s3:GetBucketTagging",
+          "s3:GetBucketLogging",
+          "s3:GetBucketNotification",
+          "s3:GetBucketLifecycleConfiguration"
         ]
         Resource = [
           "arn:aws:s3:::${var.frontend_s3_bucket_name}",
@@ -107,9 +113,13 @@ resource "aws_iam_role_policy" "github_actions_lambda_policy" {
         Action = [
           "lambda:UpdateFunctionCode",
           "lambda:GetFunction",
+          "lambda:GetFunctionConfiguration",
           "lambda:ListFunctions",
           "lambda:ListVersionsByFunction",
-          "lambda:GetFunctionCodeSigningConfig"
+          "lambda:GetFunctionCodeSigningConfig",
+          "lambda:ListAliases",
+          "lambda:GetPolicy",
+          "lambda:ListTags"
         ]
         Resource = [
           "arn:aws:lambda:${var.aws_region}:*:function:${var.lambda_function_name}",
@@ -135,6 +145,8 @@ resource "aws_iam_role_policy" "github_actions_dynamodb_policy" {
           "dynamodb:DescribeContinuousBackups",
           "dynamodb:DescribeTimeToLive",
           "dynamodb:ListTagsOfResource",
+          "dynamodb:DescribeStream",
+          "dynamodb:ListStreams",
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
@@ -182,7 +194,19 @@ resource "aws_iam_role_policy" "github_actions_apigateway_policy" {
       {
         Effect = "Allow"
         Action = [
-          "apigateway:GET",
+          "apigateway:GET"
+        ]
+        Resource = [
+          "arn:aws:apigateway:${var.aws_region}::/restapis/*",
+          "arn:aws:apigateway:${var.aws_region}::/apis/*",
+          "arn:aws:apigateway:${var.aws_region}::/apis/*/stages/*",
+          "arn:aws:apigateway:${var.aws_region}::/apis/*/routes/*",
+          "arn:aws:apigateway:${var.aws_region}::/apis/*/integrations/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "apigateway:POST",
           "apigateway:PUT",
           "apigateway:PATCH",
@@ -211,7 +235,10 @@ resource "aws_iam_role_policy" "github_actions_iam_read_policy" {
           "iam:GetRole",
           "iam:GetRolePolicy",
           "iam:ListRolePolicies",
-          "iam:ListAttachedRolePolicies"
+          "iam:ListAttachedRolePolicies",
+          "iam:ListRoleTags",
+          "iam:GetPolicy",
+          "iam:GetPolicyVersion"
         ]
         Resource = [
           "arn:aws:iam::*:role/${var.github_actions_role_name}",
