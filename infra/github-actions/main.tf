@@ -111,7 +111,9 @@ resource "aws_iam_role_policy" "github_actions_lambda_policy" {
           "lambda:GetFunctionCodeSigningConfig",
           "lambda:ListAliases",
           "lambda:GetPolicy",
-          "lambda:ListTags"
+          "lambda:ListTags",
+          "lambda:Get*",
+          "lambda:List*"
         ]
         Resource = [
           "arn:aws:lambda:${var.aws_region}:*:function:${var.lambda_function_name}",
@@ -139,6 +141,8 @@ resource "aws_iam_role_policy" "github_actions_dynamodb_policy" {
           "dynamodb:ListTagsOfResource",
           "dynamodb:DescribeStream",
           "dynamodb:ListStreams",
+          "dynamodb:Describe*",
+          "dynamodb:List*",
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
@@ -186,14 +190,13 @@ resource "aws_iam_role_policy" "github_actions_apigateway_policy" {
       {
         Effect = "Allow"
         Action = [
-          "apigateway:GET"
+          "apigateway:GET",
+          "apigatewayv2:GET"
         ]
         Resource = [
           "arn:aws:apigateway:${var.aws_region}::/restapis/*",
           "arn:aws:apigateway:${var.aws_region}::/apis/*",
-          "arn:aws:apigateway:${var.aws_region}::/apis/*/stages/*",
-          "arn:aws:apigateway:${var.aws_region}::/apis/*/routes/*",
-          "arn:aws:apigateway:${var.aws_region}::/apis/*/integrations/*"
+          "arn:aws:apigateway:${var.aws_region}::/apis/*/*"
         ]
       },
       {
@@ -230,7 +233,9 @@ resource "aws_iam_role_policy" "github_actions_iam_read_policy" {
           "iam:ListAttachedRolePolicies",
           "iam:ListRoleTags",
           "iam:GetPolicy",
-          "iam:GetPolicyVersion"
+          "iam:GetPolicyVersion",
+          "iam:Get*",
+          "iam:List*"
         ]
         Resource = [
           "arn:aws:iam::*:role/${var.github_actions_role_name}",
