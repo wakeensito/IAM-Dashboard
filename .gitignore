@@ -159,3 +159,9 @@ security-reports/
 dist/
 build/
 .next/
+
+# Lambda deployment packages
+*.zip
+lambda_function.zip
+npm-cache/
+nul
