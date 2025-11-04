@@ -69,7 +69,8 @@ resource "aws_iam_role_policy" "github_actions_s3_policy" {
           "s3:GetBucketLocation",
           "s3:GetBucketAcl",
           "s3:GetBucketCORS",
-          "s3:GetBucketWebsite"
+          "s3:GetBucketWebsite",
+          "s3:GetBucketVersioning"
         ]
         Resource = [
           "arn:aws:s3:::${var.frontend_s3_bucket_name}",
@@ -133,6 +134,7 @@ resource "aws_iam_role_policy" "github_actions_dynamodb_policy" {
           "dynamodb:DescribeTable",
           "dynamodb:DescribeContinuousBackups",
           "dynamodb:DescribeTimeToLive",
+          "dynamodb:ListTagsOfResource",
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
