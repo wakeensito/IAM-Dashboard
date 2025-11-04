@@ -61,25 +61,12 @@ resource "aws_iam_role_policy" "github_actions_s3_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        # ListBucket permission (on bucket only, not bucket/*)
+        # ListBucket and all GetBucket* permissions (Terraform reads all bucket attributes)
         Effect = "Allow"
         Action = [
           "s3:ListBucket",
-          "s3:GetBucketPolicy",
-          "s3:GetBucketLocation",
-          "s3:GetBucketAcl",
-          "s3:GetBucketCORS",
-          "s3:GetBucketWebsite",
-          "s3:GetBucketVersioning",
-          "s3:GetBucketEncryption",
-          "s3:GetBucketPublicAccessBlock",
-          "s3:GetBucketTagging",
-          "s3:GetBucketLogging",
-          "s3:GetBucketNotification",
-          "s3:GetBucketLifecycleConfiguration",
-          "s3:GetBucketAccelerateConfiguration",
-          "s3:GetAccelerateConfiguration",
-          "s3:GetBucketRequestPayment"
+          "s3:GetBucket*",
+          "s3:GetAccelerateConfiguration"
         ]
         Resource = [
           "arn:aws:s3:::${var.frontend_s3_bucket_name}",
