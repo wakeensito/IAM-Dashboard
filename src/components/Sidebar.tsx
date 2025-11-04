@@ -17,7 +17,9 @@ import {
   Lock,
   Activity,
   DollarSign,
-  Monitor
+  Monitor,
+  Search,
+  Eye
 } from "lucide-react";
 
 interface SidebarProps {
@@ -27,20 +29,21 @@ interface SidebarProps {
 
 const navItems = [
   { id: "dashboard", label: "Security Overview", icon: LayoutDashboard },
+  { id: "separator-scanners", label: "", icon: null, type: "separator" },
+  { id: "security-hub", label: "Security Hub", icon: Shield },
+  { id: "guardduty", label: "GuardDuty", icon: AlertTriangle },
+  { id: "config", label: "Config", icon: Settings },
+  { id: "inspector", label: "Inspector", icon: Search },
+  { id: "macie", label: "Macie", icon: Eye },
+  { id: "separator-resources", label: "", icon: null, type: "separator" },
   { id: "iam-security", label: "IAM & Access Control", icon: Users },
   { id: "ec2-security", label: "EC2 & Compute", icon: Cloud },
   { id: "s3-security", label: "S3 & Storage", icon: HardDrive },
-  { id: "network-security", label: "VPC & Networking", icon: Network },
-  { id: "database-security", label: "RDS & Databases", icon: Database },
-  { id: "lambda-security", label: "Lambda & Serverless", icon: Zap },
-  { id: "separator1", label: "", icon: null, type: "separator" },
-  { id: "cloudtrail", label: "CloudTrail Monitoring", icon: Activity },
-  { id: "compliance", label: "Compliance Dashboard", icon: Shield },
-  { id: "cost-optimization", label: "Cost & Optimization", icon: DollarSign },
-  { id: "separator2", label: "", icon: null, type: "separator" },
+  { id: "separator-other", label: "", icon: null, type: "separator" },
   { id: "alerts", label: "Security Alerts", icon: AlertTriangle },
-  { id: "grafana", label: "Grafana Integration", icon: BarChart3 },
+  { id: "compliance", label: "Compliance Dashboard", icon: Shield },
   { id: "reports", label: "Security Reports", icon: FileText },
+  { id: "grafana", label: "Grafana Integration", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 

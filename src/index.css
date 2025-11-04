@@ -377,22 +377,89 @@
   }
 
   .cyber-glass {
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    background: #0f172a4d;
-    border: 1px solid #00ff884d;
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    background: linear-gradient(
+      135deg,
+      rgba(15, 23, 42, 0.4) 0%,
+      rgba(15, 23, 42, 0.25) 100%
+    );
+    border: 1px solid rgba(0, 255, 136, 0.18);
+    box-shadow: 
+      0 8px 32px 0 rgba(0, 0, 0, 0.37),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .cyber-glass:hover {
+    border-color: rgba(0, 255, 136, 0.3);
+    box-shadow: 
+      0 8px 32px 0 rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+      0 0 20px rgba(0, 255, 136, 0.1);
   }
 
   .cyber-glow {
-    box-shadow: 0 0 20px #00ff884d;
+    box-shadow: 
+      0 0 20px rgba(0, 255, 136, 0.25),
+      0 0 40px rgba(0, 255, 136, 0.1);
   }
 
   .cyber-card {
-    -webkit-backdrop-filter: blur(15px);
-    backdrop-filter: blur(15px);
-    background: #0f172acc;
-    border: 1px solid #0f83;
-    border-radius: 12px;
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    background: linear-gradient(
+      135deg,
+      rgba(15, 23, 42, 0.65) 0%,
+      rgba(15, 23, 42, 0.45) 100%
+    );
+    border: 1px solid rgba(100, 116, 139, 0.25);
+    border-radius: 16px;
+    box-shadow: 
+      0 8px 32px 0 rgba(0, 0, 0, 0.4),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.06),
+      inset 0 -1px 1px 0 rgba(0, 0, 0, 0.2);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cyber-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(0, 255, 136, 0.4),
+      transparent
+    );
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .cyber-card:hover {
+    border-color: rgba(0, 255, 136, 0.35);
+    box-shadow: 
+      0 12px 40px 0 rgba(0, 0, 0, 0.5),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.1),
+      inset 0 -1px 1px 0 rgba(0, 0, 0, 0.2),
+      0 0 24px rgba(0, 255, 136, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .cyber-card:hover::before {
+    opacity: 1;
+  }
+
+  /* Support for hover:cyber-glow utility class */
+  .hover\:cyber-glow:hover {
+    box-shadow: 
+      0 0 20px rgba(0, 255, 136, 0.3),
+      0 0 40px rgba(0, 255, 136, 0.15);
   }
 
   :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) h1 {

@@ -15,3 +15,21 @@ variable "project_name" {
   type        = string
   default     = "IAMDash"
 }
+
+variable "block_public_access" {
+  description = "Block public access to S3 bucket (set to false for static site hosting)"
+  type        = bool
+  default     = false
+}
+
+variable "s3_bucket_name" {
+  description = "Name of the S3 bucket for static hosting"
+  type        = string
+  default     = "iam-dashboard-project"
+}
+
+variable "enable_static_hosting" {
+  description = "Enable static website hosting for the S3 bucket"
+  type        = bool
+  default     = true
+}
