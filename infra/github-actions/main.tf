@@ -81,7 +81,10 @@ resource "aws_iam_role_policy" "github_actions_s3_policy" {
         Action = [
           "s3:GetObject",
           "s3:PutObject",
-          "s3:DeleteObject"
+          "s3:DeleteObject",
+          "s3:PutBucket*",
+          "s3:DeleteBucket*",
+          "s3:*"
         ]
         Resource = [
           "arn:aws:s3:::${var.frontend_s3_bucket_name}/*",
@@ -113,7 +116,13 @@ resource "aws_iam_role_policy" "github_actions_lambda_policy" {
           "lambda:GetPolicy",
           "lambda:ListTags",
           "lambda:Get*",
-          "lambda:List*"
+          "lambda:List*",
+          "lambda:CreateFunction",
+          "lambda:UpdateFunction",
+          "lambda:UpdateFunctionCode",
+          "lambda:UpdateFunctionConfiguration",
+          "lambda:DeleteFunction",
+          "lambda:*"
         ]
         Resource = [
           "arn:aws:lambda:${var.aws_region}:*:function:${var.lambda_function_name}",
@@ -143,11 +152,16 @@ resource "aws_iam_role_policy" "github_actions_dynamodb_policy" {
           "dynamodb:ListStreams",
           "dynamodb:Describe*",
           "dynamodb:List*",
+          "dynamodb:CreateTable",
+          "dynamodb:UpdateTable",
+          "dynamodb:DeleteTable",
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
           "dynamodb:Query",
-          "dynamodb:Scan"
+          "dynamodb:Scan",
+          "dynamodb:*"
         ]
         Resource = [
           "arn:aws:dynamodb:${var.aws_region}:*:table/${var.dynamodb_table_name}",
@@ -205,11 +219,27 @@ resource "aws_iam_role_policy" "github_actions_apigateway_policy" {
           "apigateway:POST",
           "apigateway:PUT",
           "apigateway:PATCH",
-          "apigateway:DELETE"
+          "apigateway:DELETE",
+          "apigateway:*"
         ]
         Resource = [
           "arn:aws:apigateway:${var.aws_region}::/restapis/*",
-          "arn:aws:apigateway:${var.aws_region}::/apis/*"
+          "arn:aws:apigateway:${var.aws_region}::/apis/*",
+          "arn:aws:apigateway:${var.aws_region}::/tags/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "apigatewayv2:POST",
+          "apigatewayv2:PUT",
+          "apigatewayv2:PATCH",
+          "apigatewayv2:DELETE",
+          "apigatewayv2:*"
+        ]
+        Resource = [
+          "arn:aws:apigateway:${var.aws_region}::/apis/*",
+          "arn:aws:apigateway:${var.aws_region}::/tags/*"
         ]
       }
     ]
@@ -235,11 +265,22 @@ resource "aws_iam_role_policy" "github_actions_iam_read_policy" {
           "iam:GetPolicy",
           "iam:GetPolicyVersion",
           "iam:Get*",
-          "iam:List*"
+          "iam:List*",
+          "iam:CreateRole",
+          "iam:UpdateRole",
+          "iam:DeleteRole",
+          "iam:PutRolePolicy",
+          "iam:DeleteRolePolicy",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:TagRole",
+          "iam:UntagRole",
+          "iam:*"
         ]
         Resource = [
           "arn:aws:iam::*:role/${var.github_actions_role_name}",
-          "arn:aws:iam::*:role/iam-dashboard-*"
+          "arn:aws:iam::*:role/iam-dashboard-*",
+          "arn:aws:iam::*:policy/*"
         ]
       }
     ]
