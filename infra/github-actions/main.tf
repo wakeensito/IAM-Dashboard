@@ -11,9 +11,12 @@ provider "aws" {
   region = var.aws_region
 }
 
-# OIDC Provider for GitHub Actions (already exists, reference it)
-data "aws_iam_openid_connect_provider" "github" {
-  url = "https://token.actions.githubusercontent.com"
+# OIDC Provider for GitHub Actions (already exists, reference it by ARN)
+# Using data source with ARN lookup instead of URL to avoid needing ListOpenIDConnectProviders permission
+data "aws_caller_identity" "current" {}
+
+locals {
+  oidc_provider_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
 }
 
 # IAM Role for GitHub Actions
@@ -26,7 +29,7 @@ resource "aws_iam_role" "github_actions_deployer" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = data.aws_iam_openid_connect_provider.github.arn
+          Federated = local.oidc_provider_arn
         }
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
