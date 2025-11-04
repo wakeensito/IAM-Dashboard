@@ -33,7 +33,11 @@ jobs:
 
     - name: Terraform Init
       run: |
+        pwd
+        ls -la
+        ls -la infra/ || echo "infra directory not found"
         cd infra
+        ls -la *.tf || echo "No .tf files found"
         terraform init
 
     - name: Terraform Plan
