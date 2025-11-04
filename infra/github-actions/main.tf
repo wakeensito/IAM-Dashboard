@@ -68,7 +68,8 @@ resource "aws_iam_role_policy" "github_actions_s3_policy" {
           "s3:GetBucketPolicy",
           "s3:GetBucketLocation",
           "s3:GetBucketAcl",
-          "s3:GetBucketCORS"
+          "s3:GetBucketCORS",
+          "s3:GetBucketWebsite"
         ]
         Resource = [
           "arn:aws:s3:::${var.frontend_s3_bucket_name}",
@@ -106,7 +107,8 @@ resource "aws_iam_role_policy" "github_actions_lambda_policy" {
           "lambda:UpdateFunctionCode",
           "lambda:GetFunction",
           "lambda:ListFunctions",
-          "lambda:ListVersionsByFunction"
+          "lambda:ListVersionsByFunction",
+          "lambda:GetFunctionCodeSigningConfig"
         ]
         Resource = [
           "arn:aws:lambda:${var.aws_region}:*:function:${var.lambda_function_name}",
@@ -130,6 +132,7 @@ resource "aws_iam_role_policy" "github_actions_dynamodb_policy" {
         Action = [
           "dynamodb:DescribeTable",
           "dynamodb:DescribeContinuousBackups",
+          "dynamodb:DescribeTimeToLive",
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
