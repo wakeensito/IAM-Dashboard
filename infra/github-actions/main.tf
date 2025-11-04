@@ -66,7 +66,8 @@ resource "aws_iam_role_policy" "github_actions_s3_policy" {
         Action = [
           "s3:ListBucket",
           "s3:GetBucketPolicy",
-          "s3:GetBucketLocation"
+          "s3:GetBucketLocation",
+          "s3:GetBucketAcl"
         ]
         Resource = [
           "arn:aws:s3:::${var.frontend_s3_bucket_name}",
