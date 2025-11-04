@@ -67,7 +67,8 @@ resource "aws_iam_role_policy" "github_actions_s3_policy" {
           "s3:ListBucket",
           "s3:GetBucketPolicy",
           "s3:GetBucketLocation",
-          "s3:GetBucketAcl"
+          "s3:GetBucketAcl",
+          "s3:GetBucketCORS"
         ]
         Resource = [
           "arn:aws:s3:::${var.frontend_s3_bucket_name}",
@@ -104,7 +105,8 @@ resource "aws_iam_role_policy" "github_actions_lambda_policy" {
         Action = [
           "lambda:UpdateFunctionCode",
           "lambda:GetFunction",
-          "lambda:ListFunctions"
+          "lambda:ListFunctions",
+          "lambda:ListVersionsByFunction"
         ]
         Resource = [
           "arn:aws:lambda:${var.aws_region}:*:function:${var.lambda_function_name}",
@@ -127,6 +129,7 @@ resource "aws_iam_role_policy" "github_actions_dynamodb_policy" {
         Effect = "Allow"
         Action = [
           "dynamodb:DescribeTable",
+          "dynamodb:DescribeContinuousBackups",
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
@@ -180,7 +183,10 @@ resource "aws_iam_role_policy" "github_actions_apigateway_policy" {
           "apigateway:PATCH",
           "apigateway:DELETE"
         ]
-        Resource = "arn:aws:apigateway:${var.aws_region}::/restapis/*"
+        Resource = [
+          "arn:aws:apigateway:${var.aws_region}::/restapis/*",
+          "arn:aws:apigateway:${var.aws_region}::/apis/*"
+        ]
       }
     ]
   })
