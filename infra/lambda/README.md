@@ -18,6 +18,8 @@ Creates an AWS Lambda function that aggregates security findings from AWS native
 - `infra/lambda/variables.tf` - Input variables
 - `infra/lambda/outputs.tf` - Output values
 - `infra/lambda/lambda-role-policy.json` - IAM permissions for Lambda
+- `infra/lambda/lambda_function.py` - Lambda function implementation
+- `infra/lambda/requirements.txt` - Python dependencies for Lambda
 - `infra/lambda/README.md` - This file
 
 ## 🔐 IAM Permissions
@@ -27,16 +29,19 @@ The Lambda role (`iam-dashboard-lambda-role`) has permissions for:
 - **CloudWatch Logs**: Create log groups/streams, write logs
 - **S3**: PutObject, GetObject, ListBucket on `iam-dashboard-project` and `iam-dashboard-scan-results-*`
 - **DynamoDB**: PutItem, GetItem, UpdateItem, Query, Scan on `iam-dashboard-*` tables
-- **AWS Security Services**: (Will be added when implementing scanner integrations)
-  - Security Hub: GetFindings, BatchImportFindings
-  - GuardDuty: ListDetectors, GetFindings
-  - Config: DescribeConfigRules, GetComplianceSummaryByConfigRule
-  - Inspector: ListFindings, DescribeFindings
-  - Macie: ListFindings, GetFindings
+- **AWS Security Services**: Full permissions for security scanning
+  - Security Hub: GetFindings, BatchImportFindings, GetInsights, GetComplianceSummary
+  - GuardDuty: ListDetectors, GetDetector, ListFindings, GetFindings, DescribeFindings
+  - Config: DescribeConfigRules, GetComplianceSummaryByConfigRule, DescribeComplianceByConfigRule
+  - Inspector: ListFindings, GetFindings, BatchGetFindings, ListScans
+  - Macie: ListFindings, GetFindings, BatchGetFindings, DescribeBuckets
+  - IAM: ListUsers, ListRoles, ListMFADevices, ListAccessKeys, GetAccessKeyLastUsed
+  - EC2: DescribeInstances, DescribeSecurityGroups, DescribeVolumes, DescribeSnapshots
+  - S3: GetBucketEncryption, GetPublicAccessBlock
 
 ## 🚀 How to Deploy
 
-### Option 1: Deploy with Placeholder Code (No Code Yet)
+The Lambda function is automatically packaged by Terraform. Simply run:
 
 ```bash
 cd infra/lambda
@@ -45,27 +50,14 @@ terraform plan
 terraform apply
 ```
 
-This creates the Lambda function with placeholder Python code.
+Terraform will automatically:
+1. Package `lambda_function.py` into a ZIP file
+2. Deploy the Lambda function with the packaged code
+3. Configure IAM roles and permissions
 
-### Option 2: Deploy with Actual Code
-
-1. Create your Lambda deployment package:
-   ```bash
-   cd infra/lambda
-   zip -r function.zip lambda_function.py opa-policies/ requirements.txt
-   ```
-
-2. Set the zip file path:
-   ```bash
-   terraform apply -var="lambda_zip_file=./function.zip"
-   ```
-
-   Or update `variables.tf`:
-   ```hcl
-   variable "lambda_zip_file" {
-     default = "./function.zip"
-   }
-   ```
+**Note**: The Lambda runtime includes `boto3` and `botocore`, so no additional dependencies need to be bundled. If you need custom dependencies, you can:
+- Use Lambda Layers
+- Create a custom deployment package with `lambda_zip_file` variable
 
 ## 📝 Environment Variables
 
@@ -80,28 +72,53 @@ Additional variables can be added via `lambda_environment_variables` map.
 
 ## 🔄 Lambda Handler Structure
 
-The placeholder handler expects:
-- **File**: `lambda_function.py`
-- **Function**: `lambda_handler(event, context)`
-- **Event**: API Gateway event or direct invocation
+The Lambda function supports the following scanner types:
+- **security-hub**: Scan AWS Security Hub for findings
+- **guardduty**: Scan GuardDuty for threat detections
+- **config**: Scan AWS Config for compliance
+- **inspector**: Scan AWS Inspector for vulnerabilities
+- **macie**: Scan AWS Macie for data security issues
+- **iam**: Scan IAM users, roles, and policies
+- **ec2**: Scan EC2 instances for security issues
+- **s3**: Scan S3 buckets for security issues
+- **full**: Execute all security scans
 
-Example structure:
-```python
-def lambda_handler(event, context):
-    """
-    Main Lambda handler for security scanning
-    
-    Expected event structure:
-    {
-        "scanner_type": "security-hub|guardduty|config|inspector|macie|iam-opa|ec2-opa|s3-opa",
-        "scan_parameters": {...}
-    }
-    """
-    # Implementation will scan AWS resources and store results
-    return {
-        'statusCode': 200,
-        'body': 'Scan completed'
-    }
+### Event Structure (API Gateway):
+```json
+{
+  "httpMethod": "POST",
+  "path": "/scan/{scanner_type}",
+  "pathParameters": {
+    "scanner_type": "security-hub"
+  },
+  "body": "{\"region\": \"us-east-1\"}"
+}
+```
+
+### Event Structure (Direct Invocation):
+```json
+{
+  "scanner_type": "security-hub",
+  "region": "us-east-1",
+  "scan_parameters": {
+    "severity": "HIGH"
+  }
+}
+```
+
+### Response:
+```json
+{
+  "statusCode": 200,
+  "body": {
+    "scan_id": "security-hub-2024-01-01T00:00:00",
+    "scanner_type": "security-hub",
+    "region": "us-east-1",
+    "status": "completed",
+    "results": {...},
+    "timestamp": "2024-01-01T00:00:00"
+  }
+}
 ```
 
 ## 🏷️ Tags

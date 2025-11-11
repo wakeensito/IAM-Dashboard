@@ -15,7 +15,9 @@
       "Action": [
         "s3:PutObject",
         "s3:GetObject",
-        "s3:ListBucket"
+        "s3:ListBucket",
+        "s3:GetBucketEncryption",
+        "s3:GetPublicAccessBlock"
       ],
       "Resource": [
         "arn:aws:s3:::iam-dashboard-project/*",
@@ -34,6 +36,85 @@
         "dynamodb:Scan"
       ],
       "Resource": "arn:aws:dynamodb:*:*:table/iam-dashboard-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "securityhub:GetFindings",
+        "securityhub:BatchImportFindings",
+        "securityhub:GetInsights",
+        "securityhub:GetComplianceSummary"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "guardduty:ListDetectors",
+        "guardduty:GetDetector",
+        "guardduty:ListFindings",
+        "guardduty:GetFindings",
+        "guardduty:DescribeFindings"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "config:DescribeConfigRules",
+        "config:GetComplianceSummaryByConfigRule",
+        "config:GetComplianceSummaryByResourceType",
+        "config:DescribeComplianceByConfigRule",
+        "config:DescribeComplianceByResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "inspector2:ListFindings",
+        "inspector2:GetFindings",
+        "inspector2:BatchGetFindings",
+        "inspector2:ListScans"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "macie2:ListFindings",
+        "macie2:GetFindings",
+        "macie2:BatchGetFindings",
+        "macie2:DescribeBuckets"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:ListUsers",
+        "iam:GetUser",
+        "iam:ListRoles",
+        "iam:GetRole",
+        "iam:ListAttachedUserPolicies",
+        "iam:ListUserPolicies",
+        "iam:GetUserPolicy",
+        "iam:ListMFADevices",
+        "iam:ListAccessKeys",
+        "iam:GetAccessKeyLastUsed"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeVolumes",
+        "ec2:DescribeSnapshots",
+        "ec2:DescribeImages"
+      ],
+      "Resource": "*"
     }
   ]
 }

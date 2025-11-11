@@ -48,9 +48,17 @@ resource "aws_iam_role_policy" "lambda_policy" {
   policy = file("${path.module}/lambda-role-policy.json")
 }
 
+# Package Lambda function code
+data "archive_file" "lambda_zip" {
+  count       = var.lambda_zip_file == "" ? 1 : 0
+  type        = "zip"
+  output_path = "${path.module}/lambda_function.zip"
+  source_file = "${path.module}/lambda_function.py"
+}
+
 # Lambda function
 resource "aws_lambda_function" "scanner" {
-  filename         = var.lambda_zip_file != "" ? var.lambda_zip_file : "${path.module}/placeholder.zip"
+  filename         = var.lambda_zip_file != "" ? var.lambda_zip_file : data.archive_file.lambda_zip[0].output_path
   function_name    = var.lambda_function_name
   role            = aws_iam_role.lambda_role.arn
   handler         = "lambda_function.lambda_handler"
@@ -60,7 +68,7 @@ resource "aws_lambda_function" "scanner" {
   memory_size     = var.lambda_memory_size
 
   # Source code hash will force update when code changes
-  source_code_hash = var.lambda_zip_file != "" ? filebase64sha256(var.lambda_zip_file) : null
+  source_code_hash = var.lambda_zip_file != "" ? filebase64sha256(var.lambda_zip_file) : data.archive_file.lambda_zip[0].output_base64sha256
 
   environment {
     variables = merge(
@@ -82,24 +90,6 @@ resource "aws_lambda_function" "scanner" {
     Service   = "scanner"
   }
 
-  # Placeholder code if no zip file provided
   depends_on = [aws_iam_role_policy.lambda_policy]
-}
-
-# Create placeholder ZIP if no code provided
-data "archive_file" "placeholder" {
-  count       = var.lambda_zip_file == "" ? 1 : 0
-  type        = "zip"
-  output_path = "${path.module}/placeholder.zip"
-  source {
-    content  = <<EOF
-def lambda_handler(event, context):
-    return {
-        'statusCode': 200,
-        'body': 'Lambda function placeholder - code not yet deployed'
-    }
-EOF
-    filename = "lambda_function.py"
-  }
 }
 
