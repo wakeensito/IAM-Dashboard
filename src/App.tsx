@@ -2,6 +2,11 @@ import { useState } from "react";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
+import { SecurityHub } from "./components/SecurityHub";
+import { GuardDuty } from "./components/GuardDuty";
+import { AWSConfig } from "./components/AWSConfig";
+import { Inspector } from "./components/Inspector";
+import { Macie } from "./components/Macie";
 import { AWSIAMScan } from "./components/AWSIAMScan";
 import { EC2Security } from "./components/EC2Security";
 import { S3Security } from "./components/S3Security";
@@ -18,6 +23,16 @@ export default function App() {
     switch (activeTab) {
       case "dashboard":
         return <Dashboard onNavigate={setActiveTab} />;
+      case "security-hub":
+        return <SecurityHub />;
+      case "guardduty":
+        return <GuardDuty />;
+      case "config":
+        return <AWSConfig />;
+      case "inspector":
+        return <Inspector />;
+      case "macie":
+        return <Macie />;
       case "iam-security":
         return <AWSIAMScan />;
       case "ec2-security":

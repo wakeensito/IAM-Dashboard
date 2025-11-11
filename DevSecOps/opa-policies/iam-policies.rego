@@ -78,3 +78,48 @@ deny[msg] {
 allow {
     count(deny) == 0
 }
+
+# Test functions for OPA test command
+test_deny_wildcard_action {
+    input := {
+        "resource_type": "aws_iam_policy",
+        "resource": {
+            "Statement": [{
+                "Effect": "Allow",
+                "Action": "*",
+                "Resource": "arn:aws:s3:::my-bucket/*"
+            }]
+        }
+    }
+    deny[msg] with input as input
+    msg == "IAM policy contains wildcard action (*) - use specific actions"
+}
+
+test_deny_wildcard_resource {
+    input := {
+        "resource_type": "aws_iam_policy", 
+        "resource": {
+            "Statement": [{
+                "Effect": "Allow",
+                "Action": "s3:GetObject",
+                "Resource": "*"
+            }]
+        }
+    }
+    deny[msg] with input as input
+    msg == "IAM policy contains wildcard resource (*) - use specific resources"
+}
+
+test_allow_specific_permissions {
+    input := {
+        "resource_type": "aws_iam_policy",
+        "resource": {
+            "Statement": [{
+                "Effect": "Allow", 
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::my-bucket/*"
+            }]
+        }
+    }
+    count(deny) == 0 with input as input
+}

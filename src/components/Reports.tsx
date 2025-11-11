@@ -8,6 +8,8 @@ import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { FileText, Download, Calendar, Filter, Search, Eye, Plus } from "lucide-react";
+import { exportScanResultToPDF, exportScanResultToCSV, exportScanResultToJSON, type ScanResultData } from "../services/pdfExport";
+import { toast } from "sonner@2.0.3";
 
 const mockReports = [
   {
@@ -58,17 +60,94 @@ export function Reports() {
   const [reportName, setReportName] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [exportFormats, setExportFormats] = useState({
+    pdf: true,
+    csv: false,
+    json: false
+  });
+
+  const handleFormatChange = (format: 'pdf' | 'csv' | 'json') => {
+    setExportFormats(prev => ({ ...prev, [format]: !prev[format] }));
+  };
 
   const generateReport = () => {
+    if (!reportType || !reportName) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
     setIsGenerating(true);
-    // Simulate report generation
-    setTimeout(() => {
+
+    // Create mock scan result data for demonstration
+    // In production, this would come from actual scan results stored in state/context
+    const mockScanData: ScanResultData = {
+      scan_id: `report-${Date.now()}`,
+      scanner_type: reportType,
+      region: 'us-east-1',
+      status: 'completed',
+      timestamp: new Date().toISOString(),
+      scan_summary: {
+        critical_findings: 5,
+        high_findings: 12,
+        medium_findings: 8,
+        low_findings: 3,
+        users: 10,
+        roles: 17,
+        policies: 25,
+        groups: 4
+      },
+      findings: [
+        {
+          severity: 'Critical',
+          type: 'user',
+          resource_name: 'admin-user',
+          resource_arn: 'arn:aws:iam::123456789012:user/admin-user',
+          description: 'User has active access keys with administrator privileges',
+          recommendation: 'Enable MFA and rotate access keys'
+        }
+      ]
+    };
+
+    try {
+      // Export in selected formats
+      if (exportFormats.pdf) {
+        exportScanResultToPDF(mockScanData, reportName);
+        toast.success('PDF report generated', {
+          description: 'The report will open in a new window for printing'
+        });
+      }
+
+      if (exportFormats.csv) {
+        exportScanResultToCSV(mockScanData, `${reportName}.csv`);
+        toast.success('CSV report downloaded');
+      }
+
+      if (exportFormats.json) {
+        exportScanResultToJSON(mockScanData, `${reportName}.json`);
+        toast.success('JSON report downloaded');
+      }
+
+      if (!exportFormats.pdf && !exportFormats.csv && !exportFormats.json) {
+        toast.warning('Please select at least one export format');
+        setIsGenerating(false);
+        return;
+      }
+
+      // Reset form after a short delay
+      setTimeout(() => {
+        setIsGenerating(false);
+        setShowGenerateDialog(false);
+        setReportName("");
+        setReportDescription("");
+        setReportType("");
+      }, 1000);
+
+    } catch (error) {
       setIsGenerating(false);
-      setShowGenerateDialog(false);
-      setReportName("");
-      setReportDescription("");
-      setReportType("");
-    }, 3000);
+      toast.error('Failed to generate report', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -147,16 +226,31 @@ export function Reports() {
               <div>
                 <Label>Export Format</Label>
                 <div className="flex gap-2 mt-2">
-                  <label className="flex items-center space-x-2">
-                    <input type="checkbox" defaultChecked className="rounded" />
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={exportFormats.pdf}
+                      onChange={() => handleFormatChange('pdf')}
+                      className="rounded cursor-pointer" 
+                    />
                     <span className="text-sm">PDF</span>
                   </label>
-                  <label className="flex items-center space-x-2">
-                    <input type="checkbox" className="rounded" />
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={exportFormats.csv}
+                      onChange={() => handleFormatChange('csv')}
+                      className="rounded cursor-pointer" 
+                    />
                     <span className="text-sm">CSV</span>
                   </label>
-                  <label className="flex items-center space-x-2">
-                    <input type="checkbox" className="rounded" />
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={exportFormats.json}
+                      onChange={() => handleFormatChange('json')}
+                      className="rounded cursor-pointer" 
+                    />
                     <span className="text-sm">JSON</span>
                   </label>
                 </div>
@@ -257,6 +351,25 @@ export function Reports() {
                         size="icon" 
                         className="h-8 w-8 hover:bg-accent/20"
                         disabled={report.status === "In Progress"}
+                        onClick={() => {
+                          const mockData: ScanResultData = {
+                            scan_id: `report-${report.id}`,
+                            scanner_type: report.type.toLowerCase(),
+                            region: 'us-east-1',
+                            status: report.status.toLowerCase(),
+                            timestamp: report.date,
+                            scan_summary: {
+                              critical_findings: report.threats,
+                              high_findings: 0,
+                              medium_findings: 0,
+                              low_findings: 0
+                            }
+                          };
+                          exportScanResultToPDF(mockData, report.name);
+                          toast.success('Report downloaded', {
+                            description: `Downloaded ${report.name} as PDF`
+                          });
+                        }}
                       >
                         <Download className="h-4 w-4" />
                       </Button>

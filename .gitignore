@@ -146,9 +146,7 @@ postgres_data/
 
 # DevSecOps Scanner Artifacts
 .gitleaks.toml
-checkov-results.json
-gitleaks-results.json
-opa-results.json
+scanner-results/
 *.sarif
 scanner-reports/
 security-reports/
@@ -161,3 +159,9 @@ security-reports/
 dist/
 build/
 .next/
+
+# Lambda deployment packages
+*.zip
+lambda_function.zip
+npm-cache/
+nul

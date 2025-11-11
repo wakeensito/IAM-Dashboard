@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
 import { Skeleton } from "./ui/skeleton";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Play, AlertTriangle, CheckCircle, Clock, Shield, HardDrive, Zap, RefreshCw, Cloud, Users, Database, Activity } from "lucide-react";
 import { DemoModeBanner } from "./DemoModeBanner";
 
@@ -64,6 +64,8 @@ const mockCloudAlerts = [
 export function Dashboard({ onNavigate }: DashboardProps) {
   const [statsLoading, setStatsLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const scanIntervalRef = useRef<number | null>(null);
   const stats = mockCloudStats;
   const notifications = mockCloudAlerts;
 
@@ -89,9 +91,47 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   // Get recent security activity
   const recentActivity = notifications.slice(0, 5);
 
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+      }
+    };
+  }, []);
+
   const handleQuickScan = async () => {
+    // Clear any existing interval
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+    }
+    
     setIsScanning(true);
-    setTimeout(() => setIsScanning(false), 3000);
+    setScanProgress(0);
+    
+    // Animate progress from 0 to 100% over 3 seconds
+    const duration = 3000; // 3 seconds
+    const steps = 60; // 60 steps for smooth animation
+    const increment = 100 / steps;
+    const intervalTime = duration / steps;
+    
+    let currentProgress = 0;
+    scanIntervalRef.current = setInterval(() => {
+      currentProgress += increment;
+      if (currentProgress >= 100) {
+        setScanProgress(100);
+        if (scanIntervalRef.current) {
+          clearInterval(scanIntervalRef.current);
+          scanIntervalRef.current = null;
+        }
+        setTimeout(() => {
+          setIsScanning(false);
+          setScanProgress(0);
+        }, 300);
+      } else {
+        setScanProgress(Math.round(currentProgress));
+      }
+    }, intervalTime);
   };
 
   const refreshStats = () => {
@@ -257,10 +297,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">Security Scan in Progress</span>
                   <Badge className="bg-primary text-primary-foreground">
-                    75%
+                    {scanProgress}%
                   </Badge>
                 </div>
-                <Progress value={75} className="h-2" />
+                <Progress value={scanProgress} className="h-2 transition-all duration-150 ease-out" />
               </div>
             )}
 
@@ -334,10 +374,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                       data={pieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
+                      innerRadius={80}
                       outerRadius={120}
-                      paddingAngle={5}
+                      paddingAngle={2}
                       dataKey="value"
+                      label={({ name, value }) => `${name}: ${value}%`}
+                      labelLine={false}
                     >
                       {pieData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -345,7 +387,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     </Pie>
                     <Tooltip 
                       contentStyle={{ 
-                        backgroundColor: 'rgba(15, 23, 42, 0.8)', 
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)', 
                         border: '1px solid rgba(0, 255, 136, 0.3)',
                         borderRadius: '8px',
                         color: '#e2e8f0'
@@ -353,15 +395,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="flex justify-center gap-4 mt-4">
+                <div className="flex justify-center gap-6 mt-4">
                   {pieData.map((item, index) => (
                     <div key={index} className="flex items-center gap-2">
                       <div 
-                        className="w-3 h-3 rounded" 
+                        className="w-3 h-3 rounded-sm" 
                         style={{ backgroundColor: item.color }}
                       ></div>
                       <span className="text-xs text-muted-foreground">
-                        {item.name} ({item.value})
+                        {item.name} ({item.value}%)
                       </span>
                     </div>
                   ))}
@@ -382,20 +424,36 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={mockBarData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 255, 136, 0.1)" />
-                <XAxis dataKey="name" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(100, 116, 139, 0.1)" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  stroke="#64748b"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  stroke="#64748b"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <Tooltip 
                   contentStyle={{ 
-                    backgroundColor: 'rgba(15, 23, 42, 0.8)', 
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)', 
                     border: '1px solid rgba(0, 255, 136, 0.3)',
                     borderRadius: '8px',
                     color: '#e2e8f0'
-                  }} 
+                  }}
+                  cursor={{ fill: 'rgba(0, 255, 136, 0.05)' }}
                 />
-                <Bar dataKey="compliant" stackId="a" fill="#00ff88" />
-                <Bar dataKey="violations" stackId="a" fill="#ffb000" />
-                <Bar dataKey="critical" stackId="a" fill="#ff0040" />
+                <Legend
+                  wrapperStyle={{ fontSize: '12px' }}
+                  iconType="circle"
+                />
+                <Bar dataKey="compliant" stackId="a" fill="#00ff88" name="Compliant" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="violations" stackId="a" fill="#ffb000" name="Violations" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="critical" stackId="a" fill="#ff0040" name="Critical" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

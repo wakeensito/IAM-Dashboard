@@ -6,129 +6,76 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  # Remote backend configuration - uses S3 for state storage
+  # This allows GitHub Actions and local development to share the same state
+  backend "s3" {
+    bucket         = "iam-dashboard-project"
+    key            = "terraform/state/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    # DynamoDB table for state locking (optional but recommended)
+    # dynamodb_table = "terraform-state-lock"
+  }
 }
 
-# Configure the AWS Provider
 provider "aws" {
   region = var.aws_region
 }
 
-# DynamoDB Table for Scan Results
-resource "aws_dynamodb_table" "scan_results" {
-  name           = "iam-dashboard-scan-results"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "scan_id"
-  range_key      = "timestamp"
-
-  attribute {
-    name = "scan_id"
-    type = "S"
-  }
-
-  attribute {
-    name = "timestamp"
-    type = "S"
-  }
-
-  # Enable point-in-time recovery for data protection
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  # Enable encryption at rest
-  server_side_encryption {
-    enabled = true
-  }
-
-  tags = {
-    Name    = "iam-dashboard-scan-results"
-    Project = "IAMDash"
-    Env     = var.environment
-    Managed = "Terraform"
-  }
+# S3 Module
+module "s3" {
+  source = "./s3"
+  
+  aws_region     = var.aws_region
+  environment    = var.environment
+  project_name   = var.project_name
+  s3_bucket_name = var.s3_bucket_name
 }
 
-# DynamoDB Table for IAM Findings
-resource "aws_dynamodb_table" "iam_findings" {
-  name           = "iam-dashboard-iam-findings"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "finding_id"
-  range_key      = "detected_at"
-
-  attribute {
-    name = "finding_id"
-    type = "S"
-  }
-
-  attribute {
-    name = "detected_at"
-    type = "S"
-  }
-
-  # Global Secondary Index for querying by resource
-  global_secondary_index {
-    name     = "resource-index"
-    hash_key = "resource_type"
-    range_key = "severity"
-    projection_type = "ALL"
-  }
-
-  attribute {
-    name = "resource_type"
-    type = "S"
-  }
-
-  attribute {
-    name = "severity"
-    type = "S"
-  }
-
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  server_side_encryption {
-    enabled = true
-  }
-
-  tags = {
-    Name    = "iam-dashboard-iam-findings"
-    Project = "IAMDash"
-    Env     = var.environment
-    Managed = "Terraform"
-  }
+# DynamoDB Module
+module "dynamodb" {
+  source = "./dynamodb"
+  
+  aws_region            = var.aws_region
+  environment           = var.environment
+  project_name          = var.project_name
+  dynamodb_table_name   = var.dynamodb_table_name
 }
 
-# DynamoDB Table for Compliance Status
-resource "aws_dynamodb_table" "compliance_status" {
-  name           = "iam-dashboard-compliance"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "account_id"
-  range_key      = "framework"
+# Lambda Module
+module "lambda" {
+  source = "./lambda"
+  
+  aws_region            = var.aws_region
+  environment           = var.environment
+  project_name          = var.project_name
+  lambda_function_name  = var.lambda_function_name
+  dynamodb_table_name   = var.dynamodb_table_name
+  s3_bucket_name        = var.s3_bucket_name
+}
 
-  attribute {
-    name = "account_id"
-    type = "S"
-  }
+# API Gateway Module
+module "api_gateway" {
+  source = "./api-gateway"
+  
+  aws_region        = var.aws_region
+  environment       = var.environment
+  project_name      = var.project_name
+}
 
-  attribute {
-    name = "framework"
-    type = "S"
-  }
-
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  server_side_encryption {
-    enabled = true
-  }
-
-  tags = {
-    Name    = "iam-dashboard-compliance"
-    Project = "IAMDash"
-    Env     = var.environment
-    Managed = "Terraform"
-  }
+# GitHub Actions OIDC Module
+module "github_actions" {
+  source = "./github-actions"
+  
+  aws_region                = var.aws_region
+  environment               = var.environment
+  project_name              = var.project_name
+  github_repo_owner         = var.github_repo_owner
+  github_repo_name          = var.github_repo_name
+  frontend_s3_bucket_name   = var.s3_bucket_name
+  scan_results_s3_bucket_name = var.scan_results_s3_bucket_name
+  lambda_function_name      = var.lambda_function_name
+  dynamodb_table_name       = var.dynamodb_table_name
 }
 

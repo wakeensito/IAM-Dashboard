@@ -1,24 +1,25 @@
-output "dynamodb_scan_results_table" {
-  description = "DynamoDB table for scan results"
-  value       = aws_dynamodb_table.scan_results.name
+output "s3_bucket_name" {
+  description = "S3 bucket name for frontend"
+  value       = module.s3.s3_bucket_name
 }
 
-output "dynamodb_iam_findings_table" {
-  description = "DynamoDB table for IAM findings"
-  value       = aws_dynamodb_table.iam_findings.name
+output "lambda_function_name" {
+  description = "Lambda function name"
+  value       = module.lambda.lambda_function_name
 }
 
-output "dynamodb_compliance_table" {
-  description = "DynamoDB table for compliance status"
-  value       = aws_dynamodb_table.compliance_status.name
+output "dynamodb_table_name" {
+  description = "DynamoDB table name"
+  value       = module.dynamodb.dynamodb_table_name
 }
 
-output "dynamodb_table_arns" {
-  description = "ARNs of all DynamoDB tables"
-  value = {
-    scan_results = aws_dynamodb_table.scan_results.arn
-    iam_findings = aws_dynamodb_table.iam_findings.arn
-    compliance   = aws_dynamodb_table.compliance_status.arn
-  }
+output "api_gateway_id" {
+  description = "API Gateway ID"
+  value       = module.api_gateway.api_gateway_id
+}
+
+output "github_actions_role_arn" {
+  description = "GitHub Actions IAM role ARN"
+  value       = module.github_actions.github_actions_role_arn
 }
 
