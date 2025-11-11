@@ -33,6 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def create_app():
+    from api.security_scan import SecurityScanResource
     """Create and configure the Flask application"""
     app = Flask(__name__, static_folder='../static')
     
@@ -61,6 +62,7 @@ def create_app():
     api.add_resource(SecurityHubResource, '/aws/security-hub')
     api.add_resource(ConfigResource, '/aws/config')
     api.add_resource(GrafanaResource, '/grafana')
+    api.add_resource(SecurityScanResource, '/security-scan')
     
     # Serve static files (React frontend)
     @app.route('/')

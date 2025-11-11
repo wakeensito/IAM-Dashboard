@@ -292,7 +292,7 @@ If OPA policies seem too strict:
 ## Getting Help
 
 ### Resources
-- **OPA Documentation**: https://www.openpolicyagent.org/docs/
+- **OPA Documentation**: https://www.openpolicyagent.org/docs/ 
 - **Checkov Documentation**: https://www.checkov.io/
 - **Gitleaks Documentation**: https://github.com/gitleaks/gitleaks
 
