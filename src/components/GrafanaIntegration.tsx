@@ -219,31 +219,69 @@ export function GrafanaIntegration() {
   };
 
   const handleExportDashboard = () => {
-    const dashboardConfig = {
-      dashboard: {
-        title: "AWS Cloud Security Overview",
-        panels: endpoints.filter(e => e.enabled).map(endpoint => ({
-          title: endpoint.name,
-          type: "stat",
-          targets: [{
-            url: `${window.location.origin}${endpoint.endpoint}`,
-            refId: "A"
-          }]
-        }))
-      }
-    };
+    try {
+      console.log('=== Export Dashboard button clicked ==='); // Enhanced debug
+      alert('Button clicked! Check console.'); // Temporary alert to verify click
+      
+      const dashboardConfig = {
+        dashboard: {
+          title: "AWS Cloud Security Overview",
+          panels: endpoints.filter((e: MetricEndpoint) => e.enabled).map((endpoint: MetricEndpoint) => ({
+            title: endpoint.name,
+            type: "stat",
+            targets: [{
+              url: `${window.location.origin}${endpoint.endpoint}`,
+              refId: "A"
+            }]
+          }))
+        }
+      };
 
-    const blob = new Blob([JSON.stringify(dashboardConfig, null, 2)], { 
-      type: 'application/json' 
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'aws-security-dashboard.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    toast.success('Dashboard configuration exported!');
+      console.log('Dashboard config:', dashboardConfig); // Debug config
+      const configJson = JSON.stringify(dashboardConfig, null, 2);
+      console.log('JSON length:', configJson.length); // Debug JSON
+
+      const blob = new Blob([configJson], { 
+        type: 'application/json' 
+      });
+      const url = URL.createObjectURL(blob);
+      console.log('Blob URL created:', url); // Debug URL
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'aws-security-dashboard.json';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      console.log('Anchor created and appended'); // Debug
+      
+      a.click();
+      console.log('Click triggered'); // Debug
+      
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log('Cleanup complete'); // Debug
+      }, 100);
+      
+      toast.success('Dashboard configuration exported!');
+      console.log('Toast notification sent'); // Debug
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Error: ' + error); // Temporary error alert
+      toast.error('Failed to export dashboard. Please check the browser console.');
+    }
+  };
+
+  const handleDownloadSecurityOverview = () => {
+    console.log('Security Overview download clicked');
+    handleExportDashboard(); // Use the same function for now
+  };
+
+  const handleDownloadCompliance = () => {
+    console.log('Compliance Monitoring download clicked');
+    // For now, use the same export function
+    // Later we can add specific compliance dashboard config
+    handleExportDashboard();
   };
 
   const getStatusColor = (status: string) => {
@@ -498,7 +536,13 @@ export function GrafanaIntegration() {
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">Pre-built Dashboards</h3>
                 <Button 
-                  onClick={handleExportDashboard}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('BUTTON CLICKED - Event:', e);
+                    alert('Button click detected!');
+                    handleExportDashboard();
+                  }}
                   className="bg-primary text-primary-foreground hover:bg-primary/80"
                 >
                   <Download className="h-4 w-4 mr-2" />
@@ -538,11 +582,24 @@ export function GrafanaIntegration() {
                   </div>
                   
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="border-border">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-border"
+                      onClick={() => {
+                        console.log('Preview button clicked');
+                        alert('Preview feature coming soon!');
+                      }}
+                    >
                       <Monitor className="h-4 w-4 mr-2" />
                       Preview
                     </Button>
-                    <Button variant="outline" size="sm" className="border-border">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-border"
+                      onClick={handleDownloadSecurityOverview}
+                    >
                       <Download className="h-4 w-4 mr-2" />
                       Download JSON
                     </Button>
@@ -579,11 +636,24 @@ export function GrafanaIntegration() {
                   </div>
                   
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="border-border">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-border"
+                      onClick={() => {
+                        console.log('Preview button clicked');
+                        alert('Preview feature coming soon!');
+                      }}
+                    >
                       <Monitor className="h-4 w-4 mr-2" />
                       Preview
                     </Button>
-                    <Button variant="outline" size="sm" className="border-border">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-border"
+                      onClick={handleDownloadCompliance}
+                    >
                       <Download className="h-4 w-4 mr-2" />
                       Download JSON
                     </Button>
