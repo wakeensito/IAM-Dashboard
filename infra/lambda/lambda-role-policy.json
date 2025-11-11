@@ -16,6 +16,7 @@
         "s3:PutObject",
         "s3:GetObject",
         "s3:ListBucket",
+        "s3:ListAllMyBuckets",
         "s3:GetBucketEncryption",
         "s3:GetPublicAccessBlock"
       ],
@@ -23,7 +24,8 @@
         "arn:aws:s3:::iam-dashboard-project/*",
         "arn:aws:s3:::iam-dashboard-project",
         "arn:aws:s3:::iam-dashboard-scan-results-*/*",
-        "arn:aws:s3:::iam-dashboard-scan-results-*"
+        "arn:aws:s3:::iam-dashboard-scan-results-*",
+        "*"
       ]
     },
     {
