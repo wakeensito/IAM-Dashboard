@@ -8,6 +8,7 @@ import { Skeleton } from "./ui/skeleton";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Play, AlertTriangle, CheckCircle, Clock, Shield, HardDrive, Zap, RefreshCw, Cloud, Users, Database, Activity } from "lucide-react";
 import { DemoModeBanner } from "./DemoModeBanner";
+import type { ReportRecord } from "../types/report";
 
 // Mock data for charts (replace with API data in full implementation)
 const mockBarData = [
@@ -22,6 +23,7 @@ const mockBarData = [
 
 interface DashboardProps {
   onNavigate?: (tab: string) => void;
+  onFullScanComplete?: (report: ReportRecord) => void;
 }
 
 // Mock cloud security stats
@@ -61,7 +63,45 @@ const mockCloudAlerts = [
   }
 ];
 
-export function Dashboard({ onNavigate }: DashboardProps) {
+const FULL_SCAN_PROCESSES_PLACEHOLDER = 550;
+const FULL_SCAN_REPORT_SIZE = "1.5 MB";
+const FULL_SCAN_FINDINGS_BREAKDOWN = {
+  critical: 1,
+  high: 2,
+  medium: 2,
+};
+
+function buildFullScanReport(): ReportRecord {
+  const now = new Date();
+  const datePart = now.toLocaleDateString("en-CA");
+  const timePart = now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const timeZoneToken = now
+    .toLocaleTimeString("en-US", { timeZoneName: "short" })
+    .split(" ")
+    .pop() ?? "UTC";
+
+  const totalThreats =
+    FULL_SCAN_FINDINGS_BREAKDOWN.critical +
+    FULL_SCAN_FINDINGS_BREAKDOWN.high +
+    FULL_SCAN_FINDINGS_BREAKDOWN.medium;
+
+  return {
+    id: now.getTime().toString(),
+    name: `Full Security Scan - ${datePart} ${timePart} ${timeZoneToken}`,
+    type: "Automated",
+    date: datePart,
+    status: "Completed",
+    threats: totalThreats,
+    processes: FULL_SCAN_PROCESSES_PLACEHOLDER,
+    size: FULL_SCAN_REPORT_SIZE,
+  };
+}
+
+export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
   const [statsLoading, setStatsLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
@@ -127,6 +167,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         setTimeout(() => {
           setIsScanning(false);
           setScanProgress(0);
+          if (onFullScanComplete) {
+            onFullScanComplete(buildFullScanReport());
+          }
         }, 300);
       } else {
         setScanProgress(Math.round(currentProgress));

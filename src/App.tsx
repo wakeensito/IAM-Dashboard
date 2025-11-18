@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
@@ -15,15 +15,20 @@ import { CloudSecurityAlerts } from "./components/CloudSecurityAlerts";
 import { Reports } from "./components/Reports";
 import { Settings } from "./components/Settings";
 import { Toaster } from "./components/ui/sonner";
-import { ScanResultsProvider } from "./context/ScanResultsContext";
+import type { ReportRecord } from "./types/report";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [reportHistory, setReportHistory] = useState<ReportRecord[]>([]);
+
+  const handleFullScanComplete = useCallback((report: ReportRecord) => {
+    setReportHistory((prev) => [report, ...prev]);
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return <Dashboard onNavigate={setActiveTab} />;
+        return <Dashboard onNavigate={setActiveTab} onFullScanComplete={handleFullScanComplete} />;
       case "security-hub":
         return <SecurityHub />;
       case "guardduty":
@@ -57,11 +62,11 @@ export default function App() {
       case "grafana":
         return <GrafanaIntegration />;
       case "reports":
-        return <Reports />;
+        return <Reports reports={reportHistory} />;
       case "settings":
         return <Settings />;
       default:
-        return <Dashboard onNavigate={setActiveTab} />;
+        return <Dashboard onNavigate={setActiveTab} onFullScanComplete={handleFullScanComplete} />;
     }
   };
 
