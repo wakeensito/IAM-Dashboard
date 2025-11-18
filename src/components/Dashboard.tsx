@@ -8,8 +8,10 @@ import { Skeleton } from "./ui/skeleton";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Play, AlertTriangle, CheckCircle, Clock, Shield, HardDrive, Zap, RefreshCw, Cloud, Users } from "lucide-react";
 import { DemoModeBanner } from "./DemoModeBanner";
-import { getDashboardData, getSecurityHubSummary, type DashboardData, type SecurityAlert } from "../services/api";
+import { scanFull, getDashboardData, getSecurityHubSummary, type ScanResponse, type DashboardData, type SecurityAlert } from "../services/api";
+import { useScanResults } from "../context/ScanResultsContext";
 import { toast } from "sonner@2.0.3";
+import type { ReportRecord } from "../types/report";
 
 interface DashboardProps {
   onNavigate?: (tab: string) => void;
@@ -36,11 +38,51 @@ const formatTimestamp = (timestamp: string): string => {
   }
 };
 
-export function Dashboard({ onNavigate }: DashboardProps) {
+const FULL_SCAN_PROCESSES_PLACEHOLDER = 550;
+const FULL_SCAN_REPORT_SIZE = "1.5 MB";
+
+function buildFullScanReport(scanResponse?: ScanResponse): ReportRecord {
+  const now = new Date();
+  const datePart = now.toLocaleDateString("en-CA");
+  const timePart = now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const timeZoneToken = now
+    .toLocaleTimeString("en-US", { timeZoneName: "short" })
+    .split(" ")
+    .pop() ?? "UTC";
+
+  // Calculate total threats from scan results if available
+  let totalThreats = 0;
+  if (scanResponse?.results) {
+    const results = scanResponse.results;
+    totalThreats = 
+      (results.scan_summary?.critical_findings || 0) +
+      (results.scan_summary?.high_findings || 0) +
+      (results.scan_summary?.medium_findings || 0) +
+      (results.scan_summary?.low_findings || 0);
+  }
+
+  return {
+    id: scanResponse?.scan_id || now.getTime().toString(),
+    name: `Full Security Scan - ${datePart} ${timePart} ${timeZoneToken}`,
+    type: "Automated",
+    date: datePart,
+    status: scanResponse?.status === 'completed' ? 'Completed' : scanResponse?.status === 'failed' ? 'Failed' : 'In Progress',
+    threats: totalThreats,
+    processes: FULL_SCAN_PROCESSES_PLACEHOLDER,
+    size: FULL_SCAN_REPORT_SIZE,
+  };
+}
+
+export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
   const [statsLoading, setStatsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const scanIntervalRef = useRef<number | null>(null);
+  const { addScanResult } = useScanResults();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
   const [stats, setStats] = useState({
