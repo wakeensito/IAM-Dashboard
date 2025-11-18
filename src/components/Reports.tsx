@@ -78,13 +78,190 @@ export function Reports({ reports }: ReportsProps) {
   const [reportType, setReportType] = useState<string>(DEFAULT_REPORT_TYPE);
   const [reportDescription, setReportDescription] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [exportFormats, setExportFormats] = useState({
+    pdf: true,
+    csv: false,
+    json: false
+  });
+  const { getScanResult, getAllScanResults } = useScanResults();
+
+  const handleFormatChange = (format: 'pdf' | 'csv' | 'json') => {
+    setExportFormats(prev => ({ ...prev, [format]: !prev[format] }));
+  };
 
   const selectedReport = REPORT_TYPE_TABS.find((tab) => tab.value === reportType) ?? REPORT_TYPE_TABS[0];
 
   const generateReport = () => {
+    if (!reportType || !reportName) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
     setIsGenerating(true);
-    // Simulate report generation
-    setTimeout(() => {
+
+    // Map report type to scanner type
+    const scannerTypeMap: Record<string, string> = {
+      'comprehensive': 'full',
+      'memory-scan': 'memory', // Not a scanner, but keep for compatibility
+      'hidden-process': 'process', // Not a scanner, but keep for compatibility
+      'dll-analysis': 'dll', // Not a scanner, but keep for compatibility
+      'incident': 'full',
+      'custom': reportType, // Use as-is
+      'iam': 'iam',
+      'ec2': 'ec2',
+      's3': 's3',
+      'security-hub': 'security-hub',
+      'guardduty': 'guardduty',
+      'config': 'config',
+      'inspector': 'inspector',
+      'macie': 'macie'
+    };
+    
+    const scannerType = scannerTypeMap[reportType] || reportType;
+    
+    // For comprehensive reports, combine all available scan results
+    if (reportType === 'comprehensive' || reportType === 'incident') {
+      const allScans = getAllScanResults();
+      if (allScans.length > 0) {
+        // Combine all scan results into one comprehensive report
+        const combinedSummary = {
+          critical_findings: allScans.reduce((sum, s) => sum + (s.scan_summary?.critical_findings || 0), 0),
+          high_findings: allScans.reduce((sum, s) => sum + (s.scan_summary?.high_findings || 0), 0),
+          medium_findings: allScans.reduce((sum, s) => sum + (s.scan_summary?.medium_findings || 0), 0),
+          low_findings: allScans.reduce((sum, s) => sum + (s.scan_summary?.low_findings || 0), 0),
+          users: allScans.find(s => s.scanner_type === 'iam')?.scan_summary?.users || 0,
+          roles: allScans.find(s => s.scanner_type === 'iam')?.scan_summary?.roles || 0,
+          policies: allScans.find(s => s.scanner_type === 'iam')?.scan_summary?.policies || 0,
+          groups: allScans.find(s => s.scanner_type === 'iam')?.scan_summary?.groups || 0
+        };
+        
+        const allFindings = allScans.flatMap(s => s.findings || []);
+        
+        scanData = {
+          scan_id: `comprehensive-${Date.now()}`,
+          scanner_type: 'comprehensive',
+          region: allScans[0]?.region || 'us-east-1',
+          status: 'completed',
+          timestamp: new Date().toISOString(),
+          results: { scans: allScans },
+          scan_summary: combinedSummary,
+          findings: allFindings
+        };
+        
+        toast.info('Comprehensive report generated', {
+          description: `Combined ${allScans.length} scan results`
+        });
+      } else {
+        // No scans available, use mock data
+        scanData = {
+          scan_id: `report-${Date.now()}`,
+          scanner_type: reportType,
+          region: 'us-east-1',
+          status: 'completed',
+          timestamp: new Date().toISOString(),
+          scan_summary: {
+            critical_findings: 5,
+            high_findings: 12,
+            medium_findings: 8,
+            low_findings: 3
+          },
+          findings: []
+        };
+        toast.warning('No scan data found', {
+          description: 'Run scans first to generate comprehensive report with real data'
+        });
+      }
+    } else {
+      // Get real scan result from context, or use mock data as fallback
+      const realScanResult = getScanResult(scannerType);
+      let scanDataSingle: ScanResultData;
+
+      if (realScanResult) {
+        // Use real scan result
+        scanDataSingle = {
+          scan_id: realScanResult.scan_id,
+          scanner_type: realScanResult.scanner_type,
+          region: realScanResult.region,
+          status: realScanResult.status,
+          timestamp: realScanResult.timestamp,
+          results: realScanResult.results,
+          scan_summary: realScanResult.scan_summary,
+          findings: realScanResult.findings
+        };
+        toast.info('Using real scan data', {
+          description: `Report generated from ${realScanResult.scanner_type} scan results`
+        });
+      } else {
+        // Fallback to mock data if no real scan exists
+        scanDataSingle = {
+          scan_id: `report-${Date.now()}`,
+          scanner_type: reportType,
+          region: 'us-east-1',
+          status: 'completed',
+          timestamp: new Date().toISOString(),
+          scan_summary: {
+            critical_findings: 5,
+            high_findings: 12,
+            medium_findings: 8,
+            low_findings: 3,
+            users: 10,
+            roles: 17,
+            policies: 25,
+            groups: 4
+          },
+          findings: [
+            {
+              severity: 'Critical',
+              type: 'user',
+              resource_name: 'admin-user',
+              resource_arn: 'arn:aws:iam::123456789012:user/admin-user',
+              description: 'User has active access keys with administrator privileges',
+              recommendation: 'Enable MFA and rotate access keys'
+            }
+          ]
+        };
+        toast.warning('No scan data found', {
+          description: `No ${reportType} scan results available. Using sample data. Run a scan first for real data.`
+        });
+      }
+      scanData = scanDataSingle;
+    }
+
+    try {
+      // Export in selected formats
+      if (exportFormats.pdf) {
+        exportScanResultToPDF(scanData, reportName);
+        toast.success('PDF report generated', {
+          description: 'The report will open in a new window for printing'
+        });
+      }
+
+      if (exportFormats.csv) {
+        exportScanResultToCSV(scanData, `${reportName}.csv`);
+        toast.success('CSV report downloaded');
+      }
+
+      if (exportFormats.json) {
+        exportScanResultToJSON(scanData, `${reportName}.json`);
+        toast.success('JSON report downloaded');
+      }
+
+      if (!exportFormats.pdf && !exportFormats.csv && !exportFormats.json) {
+        toast.warning('Please select at least one export format');
+        setIsGenerating(false);
+        return;
+      }
+
+      // Reset form after a short delay
+      setTimeout(() => {
+        setIsGenerating(false);
+        setShowGenerateDialog(false);
+        setReportName("");
+        setReportDescription("");
+        setReportType("");
+      }, 1000);
+
+    } catch (error) {
       setIsGenerating(false);
       setShowGenerateDialog(false);
       setReportDescription("");
@@ -162,16 +339,31 @@ export function Reports({ reports }: ReportsProps) {
               <div>
                 <Label>Export Format</Label>
                 <div className="flex gap-2 mt-2">
-                  <label className="flex items-center space-x-2">
-                    <input type="checkbox" defaultChecked className="rounded" />
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={exportFormats.pdf}
+                      onChange={() => handleFormatChange('pdf')}
+                      className="rounded cursor-pointer" 
+                    />
                     <span className="text-sm">PDF</span>
                   </label>
-                  <label className="flex items-center space-x-2">
-                    <input type="checkbox" className="rounded" />
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={exportFormats.csv}
+                      onChange={() => handleFormatChange('csv')}
+                      className="rounded cursor-pointer" 
+                    />
                     <span className="text-sm">CSV</span>
                   </label>
-                  <label className="flex items-center space-x-2">
-                    <input type="checkbox" className="rounded" />
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={exportFormats.json}
+                      onChange={() => handleFormatChange('json')}
+                      className="rounded cursor-pointer" 
+                    />
                     <span className="text-sm">JSON</span>
                   </label>
                 </div>

@@ -71,25 +71,27 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background dark">
-      <Header onNavigate={setActiveTab} />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-        <main className="flex-1 overflow-auto">
-          {renderContent()}
-        </main>
+    <ScanResultsProvider>
+      <div className="h-screen flex flex-col bg-background dark">
+        <Header onNavigate={setActiveTab} />
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+          <main className="flex-1 overflow-auto">
+            {renderContent()}
+          </main>
+        </div>
+        <Toaster 
+          position="top-right"
+          theme="dark"
+          toastOptions={{
+            style: {
+              background: 'rgba(15, 23, 42, 0.8)',
+              border: '1px solid rgba(0, 255, 136, 0.3)',
+              color: '#e2e8f0',
+            },
+          }}
+        />
       </div>
-      <Toaster 
-        position="top-right"
-        theme="dark"
-        toastOptions={{
-          style: {
-            background: 'rgba(15, 23, 42, 0.8)',
-            border: '1px solid rgba(0, 255, 136, 0.3)',
-            color: '#e2e8f0',
-          },
-        }}
-      />
-    </div>
+    </ScanResultsProvider>
   );
 }

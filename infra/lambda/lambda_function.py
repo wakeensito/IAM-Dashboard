@@ -10,6 +10,7 @@ import boto3
 from datetime import datetime
 from typing import Dict, Any, Optional
 from botocore.exceptions import ClientError
+from decimal import Decimal
 
 # Configure logging
 logger = logging.getLogger()
@@ -31,6 +32,15 @@ DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'iam-dashboard-scan-
 S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'iam-dashboard-project')
 PROJECT_NAME = os.environ.get('PROJECT_NAME', 'IAMDash')
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
+
+
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code"""
+    if isinstance(obj, (datetime,)):
+        return obj.isoformat()
+    if isinstance(obj, Decimal):
+        return float(obj)
+    raise TypeError(f"Type {type(obj)} not serializable")
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -258,20 +268,54 @@ def scan_config(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[
     try:
         logger.info(f"Scanning AWS Config in region: {region}")
         
+        # Check if Config is enabled
+        try:
+            recorders = config.describe_configuration_recorders()
+            if not recorders.get('ConfigurationRecorders'):
+                return {
+                    'error': 'AWS Config is not enabled in this region',
+                    'message': 'Please enable AWS Config in the AWS Console or via CLI',
+                    'scan_type': 'config',
+                    'total_rules': 0,
+                    'config_rules': []
+                }
+        except ClientError as e:
+            if 'NoSuchConfigurationRecorderException' in str(e) or 'InvalidNextTokenException' in str(e):
+                return {
+                    'error': 'AWS Config is not enabled in this region',
+                    'message': 'Please enable AWS Config in the AWS Console or via CLI',
+                    'scan_type': 'config',
+                    'total_rules': 0,
+                    'config_rules': []
+                }
+        
         # Get compliance summary
         compliance_summary = config.get_compliance_summary_by_config_rule()
         
         # Get config rules
         rules = config.describe_config_rules()
         
+        # Convert to JSON-serializable format
+        compliance_summary_clean = json.loads(json.dumps(compliance_summary, default=json_serial))
+        rules_clean = json.loads(json.dumps(rules.get('ConfigRules', [])[:50], default=json_serial))
+        
         return {
-            'compliance_summary': compliance_summary,
-            'config_rules': rules.get('ConfigRules', [])[:50],
+            'compliance_summary': compliance_summary_clean,
+            'config_rules': rules_clean,
             'total_rules': len(rules.get('ConfigRules', [])),
             'scan_type': 'config'
         }
         
     except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code in ['NoSuchConfigurationRecorderException', 'InvalidNextTokenException']:
+            return {
+                'error': 'AWS Config is not enabled',
+                'message': 'Please enable AWS Config service in this region',
+                'scan_type': 'config',
+                'total_rules': 0,
+                'config_rules': []
+            }
         logger.error(f"Error scanning Config: {str(e)}")
         raise
 
@@ -281,25 +325,37 @@ def scan_inspector(region: str, scan_params: Dict[str, Any], scan_id: str) -> Di
     try:
         logger.info(f"Scanning AWS Inspector in region: {region}")
         
-        # List findings
+        # List findings (simplified - no filters to avoid validation issues)
         findings = []
-        paginator = inspector.get_paginator('list_findings')
-        page_iterator = paginator.paginate(
-            filterCriteria={
-                'severity': {
-                    'comparison': 'EQUALS',
-                    'value': scan_params.get('severity', 'HIGH')
-                }
-            }
-        )
-        
-        for page in page_iterator:
-            finding_arns = page.get('findingArns', [])
+        try:
+            # List findings without complex filters
+            response = inspector.list_findings(maxResults=100)
+            finding_arns = response.get('findingArns', [])
+            
             if finding_arns:
                 findings_response = inspector.batch_get_findings(
                     findingArns=finding_arns[:100]
                 )
                 findings.extend(findings_response.get('findings', []))
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            error_message = str(e)
+            if 'AccessDeniedException' in error_code or 'ValidationException' in error_code or 'ThrottlingException' in error_code:
+                return {
+                    'error': 'AWS Inspector is not enabled or has no findings',
+                    'message': 'Please enable AWS Inspector v2 service in this region or wait for scans to complete',
+                    'scan_type': 'inspector',
+                    'total_findings': 0,
+                    'findings': []
+                }
+            # If it's a different error, return it gracefully
+            return {
+                'error': 'Error scanning Inspector',
+                'message': error_message,
+                'scan_type': 'inspector',
+                'total_findings': 0,
+                'findings': []
+            }
         
         return {
             'findings': findings[:100],
@@ -308,6 +364,15 @@ def scan_inspector(region: str, scan_params: Dict[str, Any], scan_id: str) -> Di
         }
         
     except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if 'AccessDeniedException' in error_code or 'ValidationException' in error_code:
+            return {
+                'error': 'AWS Inspector is not enabled',
+                'message': 'Please enable AWS Inspector v2 service in this region',
+                'scan_type': 'inspector',
+                'total_findings': 0,
+                'findings': []
+            }
         logger.error(f"Error scanning Inspector: {str(e)}")
         raise
 
