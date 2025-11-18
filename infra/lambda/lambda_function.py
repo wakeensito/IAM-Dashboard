@@ -421,34 +421,166 @@ def scan_iam(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
         users = iam.list_users()
         user_list = users.get('Users', [])
         
-        # Analyze users
+        # Analyze users and generate findings
         users_with_mfa = 0
         users_without_mfa = 0
         inactive_users = 0
+        findings = []
+        critical_findings = 0
+        high_findings = 0
+        medium_findings = 0
+        low_findings = 0
+        
+        # Get account ID
+        account_id = iam.get_caller_identity().get('Account', 'N/A')
         
         for user in user_list:
-            # Check MFA
-            mfa_devices = iam.list_mfa_devices(UserName=user['UserName'])
-            if mfa_devices.get('MFADevices'):
-                users_with_mfa += 1
-            else:
-                users_without_mfa += 1
+            user_name = user['UserName']
+            user_arn = user.get('Arn', f'arn:aws:iam::{account_id}:user/{user_name}')
             
-            # Check last login
-            access_keys = iam.list_access_keys(UserName=user['UserName'])
-            if not access_keys.get('AccessKeyMetadata'):
+            try:
+                # Check MFA
+                mfa_devices = iam.list_mfa_devices(UserName=user_name)
+                if not mfa_devices.get('MFADevices'):
+                    users_without_mfa += 1
+                    high_findings += 1
+                    findings.append({
+                        'severity': 'High',
+                        'type': 'user',
+                        'resource_name': user_name,
+                        'resource_arn': user_arn,
+                        'description': f'IAM user "{user_name}" does not have MFA enabled',
+                        'recommendation': 'Enable MFA for this user to enhance account security',
+                        'finding_type': 'missing_mfa'
+                    })
+                else:
+                    users_with_mfa += 1
+                
+                # Check access keys
+                access_keys = iam.list_access_keys(UserName=user_name)
+                key_metadata = access_keys.get('AccessKeyMetadata', [])
+                
+                for key in key_metadata:
+                    key_id = key.get('AccessKeyId')
+                    key_status = key.get('Status')
+                    create_date = key.get('CreateDate')
+                    
+                    # Check if key is old (over 90 days)
+                    if create_date:
+                        from datetime import datetime, timezone
+                        key_age = (datetime.now(timezone.utc) - create_date.replace(tzinfo=timezone.utc)).days
+                        if key_age > 90:
+                            medium_findings += 1
+                            findings.append({
+                                'severity': 'Medium',
+                                'type': 'access_key',
+                                'resource_name': f'{user_name}/{key_id}',
+                                'resource_arn': user_arn,
+                                'description': f'Access key {key_id} for user "{user_name}" is {key_age} days old',
+                                'recommendation': 'Rotate access keys every 90 days for security best practices',
+                                'finding_type': 'old_access_key'
+                            })
+                    
+                    # Check last used
+                    try:
+                        last_used = iam.get_access_key_last_used(AccessKeyId=key_id)
+                        last_used_date = last_used.get('AccessKeyLastUsed', {}).get('LastUsedDate')
+                        if last_used_date:
+                            days_since_use = (datetime.now(timezone.utc) - last_used_date.replace(tzinfo=timezone.utc)).days
+                            if days_since_use > 90:
+                                low_findings += 1
+                                findings.append({
+                                    'severity': 'Low',
+                                    'type': 'access_key',
+                                    'resource_name': f'{user_name}/{key_id}',
+                                    'resource_arn': user_arn,
+                                    'description': f'Access key {key_id} has not been used in {days_since_use} days',
+                                    'recommendation': 'Consider removing unused access keys',
+                                    'finding_type': 'unused_access_key'
+                                })
+                    except ClientError:
+                        pass  # Skip if we can't get last used info
+                
+                # Check for admin policies
+                try:
+                    attached_policies = iam.list_attached_user_policies(UserName=user_name)
+                    inline_policies = iam.list_user_policies(UserName=user_name)
+                    
+                    # Check for AdministratorAccess
+                    for policy in attached_policies.get('AttachedPolicies', []):
+                        if 'AdministratorAccess' in policy.get('PolicyArn', ''):
+                            critical_findings += 1
+                            findings.append({
+                                'severity': 'Critical',
+                                'type': 'user',
+                                'resource_name': user_name,
+                                'resource_arn': user_arn,
+                                'description': f'User "{user_name}" has AdministratorAccess policy attached',
+                                'recommendation': 'Remove AdministratorAccess and use least privilege principles',
+                                'finding_type': 'admin_access'
+                            })
+                            break
+                except ClientError:
+                    pass  # Skip if we can't check policies
+                
                 # Check password last used
                 if user.get('PasswordLastUsed'):
                     from datetime import datetime, timezone
                     last_used = user['PasswordLastUsed'].replace(tzinfo=timezone.utc)
-                    if (datetime.now(timezone.utc) - last_used).days > 90:
+                    days_inactive = (datetime.now(timezone.utc) - last_used).days
+                    if days_inactive > 90:
                         inactive_users += 1
+                        medium_findings += 1
+                        findings.append({
+                            'severity': 'Medium',
+                            'type': 'user',
+                            'resource_name': user_name,
+                            'resource_arn': user_arn,
+                            'description': f'User "{user_name}" has not logged in for {days_inactive} days',
+                            'recommendation': 'Review and consider disabling inactive user accounts',
+                            'finding_type': 'inactive_user'
+                        })
+            except ClientError as e:
+                logger.warning(f"Error analyzing user {user_name}: {str(e)}")
+                continue
         
         # List roles
         roles = iam.list_roles()
         role_list = roles.get('Roles', [])
         
+        # Analyze roles for admin access
+        for role in role_list[:50]:  # Limit to first 50 roles
+            role_name = role['RoleName']
+            role_arn = role.get('Arn', f'arn:aws:iam::{account_id}:role/{role_name}')
+            
+            try:
+                attached_policies = iam.list_attached_role_policies(RoleName=role_name)
+                for policy in attached_policies.get('AttachedPolicies', []):
+                    if 'AdministratorAccess' in policy.get('PolicyArn', ''):
+                        critical_findings += 1
+                        findings.append({
+                            'severity': 'Critical',
+                            'type': 'role',
+                            'resource_name': role_name,
+                            'resource_arn': role_arn,
+                            'description': f'Role "{role_name}" has AdministratorAccess policy attached',
+                            'recommendation': 'Remove AdministratorAccess and use least privilege principles',
+                            'finding_type': 'admin_access'
+                        })
+                        break
+            except ClientError:
+                pass  # Skip if we can't check role policies
+        
+        # List policies
+        policies = iam.list_policies(Scope='Local', MaxItems=100)
+        policy_list = policies.get('Policies', [])
+        
+        # List groups
+        groups = iam.list_groups()
+        group_list = groups.get('Groups', [])
+        
         return {
+            'account_id': account_id,
             'users': {
                 'total': len(user_list),
                 'with_mfa': users_with_mfa,
@@ -458,12 +590,51 @@ def scan_iam(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
             'roles': {
                 'total': len(role_list)
             },
+            'policies': {
+                'total': len(policy_list)
+            },
+            'groups': {
+                'total': len(group_list)
+            },
+            'findings': findings[:100],  # Limit to first 100 findings
+            'scan_summary': {
+                'critical_findings': critical_findings,
+                'high_findings': high_findings,
+                'medium_findings': medium_findings,
+                'low_findings': low_findings
+            },
             'scan_type': 'iam'
         }
         
     except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
         logger.error(f"Error scanning IAM: {str(e)}")
-        raise
+        return {
+            'error': 'Error scanning IAM',
+            'message': str(e),
+            'scan_type': 'iam',
+            'findings': [],
+            'scan_summary': {
+                'critical_findings': 0,
+                'high_findings': 0,
+                'medium_findings': 0,
+                'low_findings': 0
+            }
+        }
+    except Exception as e:
+        logger.error(f"Unexpected error scanning IAM: {str(e)}", exc_info=True)
+        return {
+            'error': 'Unexpected error scanning IAM',
+            'message': str(e),
+            'scan_type': 'iam',
+            'findings': [],
+            'scan_summary': {
+                'critical_findings': 0,
+                'high_findings': 0,
+                'medium_findings': 0,
+                'low_findings': 0
+            }
+        }
 
 
 def scan_ec2(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str, Any]:
@@ -471,39 +642,160 @@ def scan_ec2(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
     try:
         logger.info(f"Scanning EC2 in region: {region}")
         
+        # Set region for EC2 client
+        ec2_regional = boto3.client('ec2', region_name=region)
+        
         # Describe instances
-        response = ec2.describe_instances()
+        response = ec2_regional.describe_instances()
         instances = []
         
         for reservation in response.get('Reservations', []):
             instances.extend(reservation.get('Instances', []))
         
-        # Analyze instances
+        # Analyze instances and generate findings
         public_instances = 0
         instances_without_imdsv2 = 0
+        unencrypted_volumes = 0
+        open_security_groups = 0
+        findings = []
+        critical_findings = 0
+        high_findings = 0
+        medium_findings = 0
+        low_findings = 0
+        
+        # Get account ID
+        account_id = iam.get_caller_identity().get('Account', 'N/A')
         
         for instance in instances:
+            instance_id = instance.get('InstanceId', 'N/A')
+            instance_arn = f'arn:aws:ec2:{region}:{account_id}:instance/{instance_id}'
+            
             # Check for public IP
             if instance.get('PublicIpAddress'):
                 public_instances += 1
+                critical_findings += 1
+                findings.append({
+                    'severity': 'Critical',
+                    'type': 'instance',
+                    'resource_name': instance_id,
+                    'resource_arn': instance_arn,
+                    'description': f'EC2 instance {instance_id} has a public IP address ({instance.get("PublicIpAddress")})',
+                    'recommendation': 'Review security groups and consider using private subnets with NAT Gateway',
+                    'finding_type': 'public_instance'
+                })
             
-            # Check IMDSv2 (simplified - would need more detailed check)
+            # Check IMDSv2
             metadata_options = instance.get('MetadataOptions', {})
             if metadata_options.get('HttpTokens') != 'required':
                 instances_without_imdsv2 += 1
+                high_findings += 1
+                findings.append({
+                    'severity': 'High',
+                    'type': 'instance',
+                    'resource_name': instance_id,
+                    'resource_arn': instance_arn,
+                    'description': f'EC2 instance {instance_id} does not require IMDSv2 (Instance Metadata Service v2)',
+                    'recommendation': 'Enable IMDSv2 to protect against SSRF attacks',
+                    'finding_type': 'missing_imdsv2'
+                })
+            
+            # Check volumes for encryption
+            volumes = instance.get('BlockDeviceMappings', [])
+            for volume_mapping in volumes:
+                volume_id = volume_mapping.get('Ebs', {}).get('VolumeId')
+                if volume_id:
+                    try:
+                        volume_info = ec2_regional.describe_volumes(VolumeIds=[volume_id])
+                        volume = volume_info.get('Volumes', [{}])[0]
+                        if not volume.get('Encrypted'):
+                            unencrypted_volumes += 1
+                            high_findings += 1
+                            findings.append({
+                                'severity': 'High',
+                                'type': 'volume',
+                                'resource_name': volume_id,
+                                'resource_arn': f'arn:aws:ec2:{region}:{account_id}:volume/{volume_id}',
+                                'description': f'EBS volume {volume_id} attached to instance {instance_id} is not encrypted',
+                                'recommendation': 'Enable encryption for EBS volumes to protect data at rest',
+                                'finding_type': 'unencrypted_volume'
+                            })
+                    except ClientError:
+                        pass  # Skip if we can't check volume
+        
+        # Check security groups for overly permissive rules
+        try:
+            security_groups = ec2_regional.describe_security_groups()
+            for sg in security_groups.get('SecurityGroups', [])[:50]:  # Limit to first 50
+                sg_id = sg.get('GroupId')
+                sg_name = sg.get('GroupName')
+                
+                for rule in sg.get('IpPermissions', []):
+                    # Check for 0.0.0.0/0 (public access)
+                    for ip_range in rule.get('IpRanges', []):
+                        if ip_range.get('CidrIp') == '0.0.0.0/0':
+                            open_security_groups += 1
+                            critical_findings += 1
+                            findings.append({
+                                'severity': 'Critical',
+                                'type': 'security_group',
+                                'resource_name': f'{sg_name} ({sg_id})',
+                                'resource_arn': f'arn:aws:ec2:{region}:{account_id}:security-group/{sg_id}',
+                                'description': f'Security group {sg_name} ({sg_id}) allows access from 0.0.0.0/0',
+                                'recommendation': 'Restrict security group rules to specific IP ranges or VPC CIDR blocks',
+                                'finding_type': 'open_security_group'
+                            })
+                            break
+        except ClientError:
+            pass  # Skip if we can't check security groups
         
         return {
+            'account_id': account_id,
             'instances': {
                 'total': len(instances),
                 'public': public_instances,
-                'without_imdsv2': instances_without_imdsv2
+                'without_imdsv2': instances_without_imdsv2,
+                'unencrypted_volumes': unencrypted_volumes,
+                'open_security_groups': open_security_groups
+            },
+            'findings': findings[:100],  # Limit to first 100 findings
+            'scan_summary': {
+                'critical_findings': critical_findings,
+                'high_findings': high_findings,
+                'medium_findings': medium_findings,
+                'low_findings': low_findings
             },
             'scan_type': 'ec2'
         }
         
     except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
         logger.error(f"Error scanning EC2: {str(e)}")
-        raise
+        return {
+            'error': 'Error scanning EC2',
+            'message': str(e),
+            'scan_type': 'ec2',
+            'findings': [],
+            'scan_summary': {
+                'critical_findings': 0,
+                'high_findings': 0,
+                'medium_findings': 0,
+                'low_findings': 0
+            }
+        }
+    except Exception as e:
+        logger.error(f"Unexpected error scanning EC2: {str(e)}", exc_info=True)
+        return {
+            'error': 'Unexpected error scanning EC2',
+            'message': str(e),
+            'scan_type': 'ec2',
+            'findings': [],
+            'scan_summary': {
+                'critical_findings': 0,
+                'high_findings': 0,
+                'medium_findings': 0,
+                'low_findings': 0
+            }
+        }
 
 
 def scan_s3(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str, Any]:
@@ -515,41 +807,155 @@ def scan_s3(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str,
         buckets = s3_client.list_buckets()
         bucket_list = buckets.get('Buckets', [])
         
-        # Analyze buckets
+        # Analyze buckets and generate findings
         public_buckets = 0
         unencrypted_buckets = 0
+        findings = []
+        critical_findings = 0
+        high_findings = 0
+        medium_findings = 0
+        low_findings = 0
+        
+        # Get account ID
+        account_id = iam.get_caller_identity().get('Account', 'N/A')
         
         for bucket in bucket_list:
             bucket_name = bucket['Name']
+            bucket_arn = f'arn:aws:s3:::{bucket_name}'
             
             try:
-                # Check public access
-                public_access = s3_client.get_public_access_block(Bucket=bucket_name)
-                if not public_access.get('PublicAccessBlockConfiguration', {}).get('BlockPublicAcls'):
-                    public_buckets += 1
+                # Check public access block
+                try:
+                    public_access = s3_client.get_public_access_block(Bucket=bucket_name)
+                    pab_config = public_access.get('PublicAccessBlockConfiguration', {})
+                    
+                    if not pab_config.get('BlockPublicAcls') or not pab_config.get('BlockPublicPolicy'):
+                        public_buckets += 1
+                        critical_findings += 1
+                        findings.append({
+                            'severity': 'Critical',
+                            'type': 'bucket',
+                            'resource_name': bucket_name,
+                            'resource_arn': bucket_arn,
+                            'description': f'S3 bucket "{bucket_name}" may allow public access (PublicAccessBlock not fully configured)',
+                            'recommendation': 'Enable all PublicAccessBlock settings to prevent accidental public exposure',
+                            'finding_type': 'public_bucket'
+                        })
+                except ClientError as e:
+                    # If PublicAccessBlock is not configured, bucket may be public
+                    if 'NoSuchPublicAccessBlockConfiguration' in str(e):
+                        public_buckets += 1
+                        critical_findings += 1
+                        findings.append({
+                            'severity': 'Critical',
+                            'type': 'bucket',
+                            'resource_name': bucket_name,
+                            'resource_arn': bucket_arn,
+                            'description': f'S3 bucket "{bucket_name}" does not have PublicAccessBlock configured',
+                            'recommendation': 'Configure PublicAccessBlock to prevent public access',
+                            'finding_type': 'public_bucket'
+                        })
                 
                 # Check encryption
                 try:
                     encryption = s3_client.get_bucket_encryption(Bucket=bucket_name)
+                    encryption_config = encryption.get('ServerSideEncryptionConfiguration', {})
+                    rules = encryption_config.get('Rules', [])
+                    if not rules:
+                        unencrypted_buckets += 1
+                        high_findings += 1
+                        findings.append({
+                            'severity': 'High',
+                            'type': 'bucket',
+                            'resource_name': bucket_name,
+                            'resource_arn': bucket_arn,
+                            'description': f'S3 bucket "{bucket_name}" does not have server-side encryption enabled',
+                            'recommendation': 'Enable server-side encryption (SSE) to protect data at rest',
+                            'finding_type': 'unencrypted_bucket'
+                        })
+                except ClientError as e:
+                    # No encryption configuration means unencrypted
+                    if 'ServerSideEncryptionConfigurationNotFoundError' in str(e):
+                        unencrypted_buckets += 1
+                        high_findings += 1
+                        findings.append({
+                            'severity': 'High',
+                            'type': 'bucket',
+                            'resource_name': bucket_name,
+                            'resource_arn': bucket_arn,
+                            'description': f'S3 bucket "{bucket_name}" does not have server-side encryption enabled',
+                            'recommendation': 'Enable server-side encryption (SSE) to protect data at rest',
+                            'finding_type': 'unencrypted_bucket'
+                        })
+                
+                # Check versioning
+                try:
+                    versioning = s3_client.get_bucket_versioning(Bucket=bucket_name)
+                    if versioning.get('Status') != 'Enabled':
+                        medium_findings += 1
+                        findings.append({
+                            'severity': 'Medium',
+                            'type': 'bucket',
+                            'resource_name': bucket_name,
+                            'resource_arn': bucket_arn,
+                            'description': f'S3 bucket "{bucket_name}" does not have versioning enabled',
+                            'recommendation': 'Enable versioning to protect against accidental deletion or overwrites',
+                            'finding_type': 'no_versioning'
+                        })
                 except ClientError:
-                    unencrypted_buckets += 1
+                    pass  # Skip if we can't check versioning
                     
-            except ClientError:
+            except ClientError as e:
                 # Skip if we can't access bucket
+                logger.warning(f"Could not access bucket {bucket_name}: {str(e)}")
                 continue
         
         return {
+            'account_id': account_id,
             'buckets': {
                 'total': len(bucket_list),
                 'public': public_buckets,
                 'unencrypted': unencrypted_buckets
             },
+            'findings': findings[:100],  # Limit to first 100 findings
+            'scan_summary': {
+                'critical_findings': critical_findings,
+                'high_findings': high_findings,
+                'medium_findings': medium_findings,
+                'low_findings': low_findings
+            },
             'scan_type': 's3'
         }
         
     except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
         logger.error(f"Error scanning S3: {str(e)}")
-        raise
+        return {
+            'error': 'Error scanning S3',
+            'message': str(e),
+            'scan_type': 's3',
+            'findings': [],
+            'scan_summary': {
+                'critical_findings': 0,
+                'high_findings': 0,
+                'medium_findings': 0,
+                'low_findings': 0
+            }
+        }
+    except Exception as e:
+        logger.error(f"Unexpected error scanning S3: {str(e)}", exc_info=True)
+        return {
+            'error': 'Unexpected error scanning S3',
+            'message': str(e),
+            'scan_type': 's3',
+            'findings': [],
+            'scan_summary': {
+                'critical_findings': 0,
+                'high_findings': 0,
+                'medium_findings': 0,
+                'low_findings': 0
+            }
+        }
 
 
 def scan_full(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str, Any]:

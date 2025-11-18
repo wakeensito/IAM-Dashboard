@@ -18,7 +18,8 @@
         "s3:ListBucket",
         "s3:ListAllMyBuckets",
         "s3:GetBucketEncryption",
-        "s3:GetPublicAccessBlock"
+        "s3:GetPublicAccessBlock",
+        "s3:GetBucketVersioning"
       ],
       "Resource": [
         "arn:aws:s3:::iam-dashboard-project/*",
@@ -99,11 +100,15 @@
         "iam:ListRoles",
         "iam:GetRole",
         "iam:ListAttachedUserPolicies",
+        "iam:ListAttachedRolePolicies",
         "iam:ListUserPolicies",
         "iam:GetUserPolicy",
         "iam:ListMFADevices",
         "iam:ListAccessKeys",
-        "iam:GetAccessKeyLastUsed"
+        "iam:GetAccessKeyLastUsed",
+        "iam:ListPolicies",
+        "iam:ListGroups",
+        "iam:GetCallerIdentity"
       ],
       "Resource": "*"
     },
