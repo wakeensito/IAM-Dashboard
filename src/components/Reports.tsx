@@ -95,6 +95,37 @@ export function Reports({ reports }: ReportsProps) {
 
   const selectedReport = REPORT_TYPE_TABS.find((tab) => tab.value === reportType) ?? REPORT_TYPE_TABS[0];
 
+  /**
+   * Extract findings from scan result, trying multiple locations
+   */
+  const extractFindingsFromResult = (scanResult: any): any[] => {
+    // Try direct findings
+    if (scanResult.findings && Array.isArray(scanResult.findings) && scanResult.findings.length > 0) {
+      return scanResult.findings;
+    }
+    
+    // Try in results object
+    if (scanResult.results?.findings && Array.isArray(scanResult.results.findings) && scanResult.results.findings.length > 0) {
+      return scanResult.results.findings;
+    }
+    
+    // Try nested in various scanner-specific locations
+    const nestedFindings: any[] = [];
+    
+    if (scanResult.results?.iam_findings) nestedFindings.push(...(Array.isArray(scanResult.results.iam_findings) ? scanResult.results.iam_findings : []));
+    if (scanResult.results?.security_hub_findings) nestedFindings.push(...(Array.isArray(scanResult.results.security_hub_findings) ? scanResult.results.security_hub_findings : []));
+    if (scanResult.results?.guardduty_findings) nestedFindings.push(...(Array.isArray(scanResult.results.guardduty_findings) ? scanResult.results.guardduty_findings : []));
+    if (scanResult.results?.config_findings) nestedFindings.push(...(Array.isArray(scanResult.results.config_findings) ? scanResult.results.config_findings : []));
+    if (scanResult.results?.inspector_findings) nestedFindings.push(...(Array.isArray(scanResult.results.inspector_findings) ? scanResult.results.inspector_findings : []));
+    if (scanResult.results?.macie_findings) nestedFindings.push(...(Array.isArray(scanResult.results.macie_findings) ? scanResult.results.macie_findings : []));
+    
+    if (nestedFindings.length > 0) {
+      return nestedFindings;
+    }
+    
+    return scanResult.findings || [];
+  };
+
   const generateReport = () => {
     if (!reportType) {
       toast.error('Please select a report type');
@@ -189,6 +220,9 @@ export function Reports({ reports }: ReportsProps) {
       let scanDataSingle: ScanResultData;
 
       if (realScanResult) {
+        // Extract findings comprehensively
+        const extractedFindings = extractFindingsFromResult(realScanResult);
+        
         // Use real scan result
         scanDataSingle = {
           scan_id: realScanResult.scan_id,
@@ -198,7 +232,7 @@ export function Reports({ reports }: ReportsProps) {
           timestamp: realScanResult.timestamp,
           results: realScanResult.results,
           scan_summary: realScanResult.scan_summary,
-          findings: realScanResult.findings
+          findings: extractedFindings.length > 0 ? extractedFindings : realScanResult.findings || []
         };
         toast.info('Using real scan data', {
           description: `Report generated from ${realScanResult.scanner_type} scan results`

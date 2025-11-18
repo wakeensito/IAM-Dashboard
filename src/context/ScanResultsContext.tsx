@@ -51,11 +51,7 @@ export function ScanResultsProvider({ children }: { children: ReactNode }) {
       }
       
       // Extract findings - try multiple locations
-      let findings = result.results?.findings;
-      if (!findings || findings.length === 0) {
-        // For IAM scans, findings might be in a different format
-        findings = result.results?.findings || [];
-      }
+      let findings = extractFindings(result.results);
       
       const storedResult: StoredScanResult = {
         scan_id: result.scan_id,
@@ -156,5 +152,99 @@ function extractScanSummary(results: any): StoredScanResult['scan_summary'] {
   }
 
   return undefined;
+}
+
+/**
+ * Extract findings from various possible locations in scan results
+ */
+function extractFindings(results: any): any[] {
+  if (!results) return [];
+  
+  // Direct findings array
+  if (Array.isArray(results.findings) && results.findings.length > 0) {
+    return results.findings;
+  }
+  
+  // IAM-specific findings
+  if (Array.isArray(results.iam_findings) && results.iam_findings.length > 0) {
+    return results.iam_findings;
+  }
+  
+  // Security Hub findings
+  if (Array.isArray(results.security_hub_findings) && results.security_hub_findings.length > 0) {
+    return results.security_hub_findings;
+  }
+  
+  // GuardDuty findings
+  if (Array.isArray(results.guardduty_findings) && results.guardduty_findings.length > 0) {
+    return results.guardduty_findings;
+  }
+  
+  // Inspector findings
+  if (Array.isArray(results.inspector_findings) && results.inspector_findings.length > 0) {
+    return results.inspector_findings;
+  }
+  
+  // Config findings
+  if (Array.isArray(results.config_findings) && results.config_findings.length > 0) {
+    return results.config_findings;
+  }
+  
+  // Macie findings
+  if (Array.isArray(results.macie_findings) && results.macie_findings.length > 0) {
+    return results.macie_findings;
+  }
+  
+  // For IAM scans, check if findings are nested in users/roles
+  if (results.users || results.roles) {
+    const iamFindings: any[] = [];
+    
+    // Check users for findings
+    if (results.users?.findings && Array.isArray(results.users.findings)) {
+      iamFindings.push(...results.users.findings);
+    }
+    
+    // Check roles for findings
+    if (results.roles?.findings && Array.isArray(results.roles.findings)) {
+      iamFindings.push(...results.roles.findings);
+    }
+    
+    // Check policies for findings
+    if (results.policies?.findings && Array.isArray(results.policies.findings)) {
+      iamFindings.push(...results.policies.findings);
+    }
+    
+    if (iamFindings.length > 0) {
+      return iamFindings;
+    }
+  }
+  
+  // For S3 scans, check buckets for findings
+  if (results.buckets) {
+    const s3Findings: any[] = [];
+    
+    if (results.buckets.findings && Array.isArray(results.buckets.findings)) {
+      s3Findings.push(...results.buckets.findings);
+    }
+    
+    if (s3Findings.length > 0) {
+      return s3Findings;
+    }
+  }
+  
+  // For EC2 scans, check instances for findings
+  if (results.instances) {
+    const ec2Findings: any[] = [];
+    
+    if (results.instances.findings && Array.isArray(results.instances.findings)) {
+      ec2Findings.push(...results.instances.findings);
+    }
+    
+    if (ec2Findings.length > 0) {
+      return ec2Findings;
+    }
+  }
+  
+  return [];
 }
 
