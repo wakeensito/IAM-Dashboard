@@ -288,3 +288,4 @@ export function exportScanResultToCSV(data: ScanResultData, filename?: string): 
   URL.revokeObjectURL(url);
 }
 
+

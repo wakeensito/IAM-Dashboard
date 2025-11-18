@@ -29,6 +29,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { DemoModeBanner } from "./DemoModeBanner";
+import { scanS3, type ScanResponse } from "../services/api";
+import { useScanResults } from "../context/ScanResultsContext";
 
 interface S3SecurityFinding {
   id: string;
@@ -207,6 +209,7 @@ export function S3Security() {
   const [error, setError] = useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = useState('all-regions');
   const [loading, setLoading] = useState(false);
+  const { addScanResult } = useScanResults();
 
   useEffect(() => {
     if (scanResult?.status === 'Completed') {
@@ -229,30 +232,61 @@ export function S3Security() {
         description: 'Analyzing S3 buckets and security configurations...'
       });
 
-      // Simulate scan progress
-      const progressInterval = setInterval(() => {
-        setScanResult(prev => {
-          if (!prev) {
-            return {
-              ...mockS3ScanResult,
-              status: 'Running',
-              progress: 10,
-              findings: []
-            };
-          }
-          if (prev.progress < 100) {
-            return { ...prev, progress: Math.min(prev.progress + 18, 100) };
-          }
-          return prev;
-        });
-      }, 600);
+      // Show loading state
+      setScanResult({
+        scan_id: 'loading',
+        status: 'Running',
+        progress: 0,
+        account_id: '',
+        total_buckets: 0,
+        findings: [],
+        scan_summary: {
+          public_buckets: 0,
+          unencrypted_buckets: 0,
+          no_versioning: 0,
+          no_logging: 0,
+          critical_findings: 0,
+          high_findings: 0,
+          medium_findings: 0,
+          low_findings: 0,
+          total_objects: 0,
+          total_size_gb: 0
+        }
+      });
 
-      // Complete scan after 5.5 seconds
-      setTimeout(() => {
-        clearInterval(progressInterval);
-        setScanResult(mockS3ScanResult);
-        setIsScanning(false);
-      }, 5500);
+      // Call the real API
+      const region = selectedRegion === 'all-regions' ? 'us-east-1' : selectedRegion;
+      const response: ScanResponse = await scanS3(region);
+
+      // Transform API response to component format
+      const transformedResult: S3ScanResult = {
+        scan_id: response.scan_id,
+        status: response.status === 'completed' ? 'Completed' : response.status === 'failed' ? 'Failed' : 'Running',
+        progress: response.status === 'completed' ? 100 : response.status === 'failed' ? 0 : 50,
+        account_id: response.results?.account_id || 'N/A',
+        total_buckets: response.results?.buckets?.total || 0,
+        findings: response.results?.findings || [],
+        scan_summary: {
+          public_buckets: response.results?.buckets?.public || 0,
+          unencrypted_buckets: response.results?.buckets?.unencrypted || 0,
+          no_versioning: 0,
+          no_logging: 0,
+          critical_findings: response.results?.buckets?.public || 0,
+          high_findings: response.results?.buckets?.unencrypted || 0,
+          medium_findings: 0,
+          low_findings: 0,
+          total_objects: 0,
+          total_size_gb: 0
+        },
+        started_at: response.timestamp,
+        completed_at: response.timestamp
+      };
+
+      setScanResult(transformedResult);
+      setIsScanning(false);
+
+      // Store in context for Reports component
+      addScanResult(response);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

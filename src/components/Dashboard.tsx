@@ -13,6 +13,7 @@ import { toast } from "sonner@2.0.3";
 
 interface DashboardProps {
   onNavigate?: (tab: string) => void;
+  onFullScanComplete?: (report: ReportRecord) => void;
 }
 
 // Helper function to format timestamp
@@ -191,29 +192,71 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     setIsScanning(true);
     setScanProgress(0);
     
-    // Animate progress from 0 to 100% over 3 seconds
-    const duration = 3000; // 3 seconds
-    const steps = 60; // 60 steps for smooth animation
-    const increment = 100 / steps;
-    const intervalTime = duration / steps;
-    
-    let currentProgress = 0;
-    scanIntervalRef.current = setInterval(() => {
-      currentProgress += increment;
-      if (currentProgress >= 100) {
-        setScanProgress(100);
-        if (scanIntervalRef.current) {
-          clearInterval(scanIntervalRef.current);
-          scanIntervalRef.current = null;
+    try {
+      toast.info('Full security scan started', {
+        description: 'Scanning all AWS security services...'
+      });
+
+      // Animate progress while API call is in progress
+      const duration = 5000; // 5 seconds for real API call
+      const steps = 60;
+      const increment = 100 / steps;
+      const intervalTime = duration / steps;
+      
+      let currentProgress = 0;
+      scanIntervalRef.current = setInterval(() => {
+        currentProgress += increment;
+        if (currentProgress < 90) { // Don't go to 100% until API completes
+          setScanProgress(Math.round(currentProgress));
         }
-        setTimeout(() => {
-          setIsScanning(false);
-          setScanProgress(0);
-        }, 300);
-      } else {
-        setScanProgress(Math.round(currentProgress));
+      }, intervalTime);
+
+      // Call the real API
+      const response: ScanResponse = await scanFull('us-east-1');
+      
+      // Clear progress animation
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
       }
-    }, intervalTime);
+      
+      // Store results in context
+      addScanResult(response);
+      
+      // Update progress to 100%
+      setScanProgress(100);
+      
+      // Create report record
+      const report = buildFullScanReport(response);
+      
+      // Call callback to add to history
+      if (onFullScanComplete) {
+        onFullScanComplete(report);
+      }
+      
+      toast.success('Full security scan completed', {
+        description: `Found ${report.threats} security findings`
+      });
+      
+      setTimeout(() => {
+        setIsScanning(false);
+        setScanProgress(0);
+      }, 300);
+      
+    } catch (error) {
+      // Clear interval on error
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
+      }
+      
+      setIsScanning(false);
+      setScanProgress(0);
+      
+      toast.error('Full security scan failed', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   };
 
   const refreshStats = () => {
