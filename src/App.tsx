@@ -15,6 +15,7 @@ import { CloudSecurityAlerts } from "./components/CloudSecurityAlerts";
 import { Reports } from "./components/Reports";
 import { Settings } from "./components/Settings";
 import { Toaster } from "./components/ui/sonner";
+import { ScanResultsProvider } from "./context/ScanResultsContext";
 import type { ReportRecord } from "./types/report";
 
 export default function App() {

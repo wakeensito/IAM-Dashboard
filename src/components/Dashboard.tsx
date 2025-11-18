@@ -8,6 +8,9 @@ import { Skeleton } from "./ui/skeleton";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Play, AlertTriangle, CheckCircle, Clock, Shield, HardDrive, Zap, RefreshCw, Cloud, Users, Database, Activity } from "lucide-react";
 import { DemoModeBanner } from "./DemoModeBanner";
+import { scanFull, type ScanResponse } from "../services/api";
+import { useScanResults } from "../context/ScanResultsContext";
+import { toast } from "sonner@2.0.3";
 import type { ReportRecord } from "../types/report";
 
 // Mock data for charts (replace with API data in full implementation)
@@ -65,13 +68,8 @@ const mockCloudAlerts = [
 
 const FULL_SCAN_PROCESSES_PLACEHOLDER = 550;
 const FULL_SCAN_REPORT_SIZE = "1.5 MB";
-const FULL_SCAN_FINDINGS_BREAKDOWN = {
-  critical: 1,
-  high: 2,
-  medium: 2,
-};
 
-function buildFullScanReport(): ReportRecord {
+function buildFullScanReport(scanResponse?: ScanResponse): ReportRecord {
   const now = new Date();
   const datePart = now.toLocaleDateString("en-CA");
   const timePart = now.toLocaleTimeString("en-US", {
@@ -84,17 +82,23 @@ function buildFullScanReport(): ReportRecord {
     .split(" ")
     .pop() ?? "UTC";
 
-  const totalThreats =
-    FULL_SCAN_FINDINGS_BREAKDOWN.critical +
-    FULL_SCAN_FINDINGS_BREAKDOWN.high +
-    FULL_SCAN_FINDINGS_BREAKDOWN.medium;
+  // Calculate total threats from scan results if available
+  let totalThreats = 0;
+  if (scanResponse?.results) {
+    const results = scanResponse.results;
+    totalThreats = 
+      (results.scan_summary?.critical_findings || 0) +
+      (results.scan_summary?.high_findings || 0) +
+      (results.scan_summary?.medium_findings || 0) +
+      (results.scan_summary?.low_findings || 0);
+  }
 
   return {
-    id: now.getTime().toString(),
+    id: scanResponse?.scan_id || now.getTime().toString(),
     name: `Full Security Scan - ${datePart} ${timePart} ${timeZoneToken}`,
     type: "Automated",
     date: datePart,
-    status: "Completed",
+    status: scanResponse?.status === 'completed' ? 'Completed' : scanResponse?.status === 'failed' ? 'Failed' : 'In Progress',
     threats: totalThreats,
     processes: FULL_SCAN_PROCESSES_PLACEHOLDER,
     size: FULL_SCAN_REPORT_SIZE,
@@ -106,6 +110,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const scanIntervalRef = useRef<number | null>(null);
+  const { addScanResult } = useScanResults();
   const stats = mockCloudStats;
   const notifications = mockCloudAlerts;
 
@@ -149,32 +154,71 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
     setIsScanning(true);
     setScanProgress(0);
     
-    // Animate progress from 0 to 100% over 3 seconds
-    const duration = 3000; // 3 seconds
-    const steps = 60; // 60 steps for smooth animation
-    const increment = 100 / steps;
-    const intervalTime = duration / steps;
-    
-    let currentProgress = 0;
-    scanIntervalRef.current = setInterval(() => {
-      currentProgress += increment;
-      if (currentProgress >= 100) {
-        setScanProgress(100);
-        if (scanIntervalRef.current) {
-          clearInterval(scanIntervalRef.current);
-          scanIntervalRef.current = null;
+    try {
+      toast.info('Full security scan started', {
+        description: 'Scanning all AWS security services...'
+      });
+
+      // Animate progress while API call is in progress
+      const duration = 5000; // 5 seconds for real API call
+      const steps = 60;
+      const increment = 100 / steps;
+      const intervalTime = duration / steps;
+      
+      let currentProgress = 0;
+      scanIntervalRef.current = setInterval(() => {
+        currentProgress += increment;
+        if (currentProgress < 90) { // Don't go to 100% until API completes
+          setScanProgress(Math.round(currentProgress));
         }
-        setTimeout(() => {
-          setIsScanning(false);
-          setScanProgress(0);
-          if (onFullScanComplete) {
-            onFullScanComplete(buildFullScanReport());
-          }
-        }, 300);
-      } else {
-        setScanProgress(Math.round(currentProgress));
+      }, intervalTime);
+
+      // Call the real API
+      const response: ScanResponse = await scanFull('us-east-1');
+      
+      // Clear progress animation
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
       }
-    }, intervalTime);
+      
+      // Store results in context
+      addScanResult(response);
+      
+      // Update progress to 100%
+      setScanProgress(100);
+      
+      // Create report record
+      const report = buildFullScanReport(response);
+      
+      // Call callback to add to history
+      if (onFullScanComplete) {
+        onFullScanComplete(report);
+      }
+      
+      toast.success('Full security scan completed', {
+        description: `Found ${report.threats} security findings`
+      });
+      
+      setTimeout(() => {
+        setIsScanning(false);
+        setScanProgress(0);
+      }, 300);
+      
+    } catch (error) {
+      // Clear interval on error
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
+      }
+      
+      setIsScanning(false);
+      setScanProgress(0);
+      
+      toast.error('Full security scan failed', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   };
 
   const refreshStats = () => {

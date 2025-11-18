@@ -8,6 +8,9 @@ import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { FileText, Download, Calendar, Filter, Search, Eye, Plus } from "lucide-react";
+import { exportScanResultToPDF, exportScanResultToCSV, exportScanResultToJSON, type ScanResultData } from "../services/pdfExport";
+import { toast } from "sonner@2.0.3";
+import { useScanResults } from "../context/ScanResultsContext";
 import type { ReportRecord } from "../types/report";
 
 const REPORT_TYPE_TABS = [
@@ -76,6 +79,7 @@ interface ReportsProps {
 export function Reports({ reports }: ReportsProps) {
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [reportType, setReportType] = useState<string>(DEFAULT_REPORT_TYPE);
+  const [reportName, setReportName] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [exportFormats, setExportFormats] = useState({
@@ -92,10 +96,13 @@ export function Reports({ reports }: ReportsProps) {
   const selectedReport = REPORT_TYPE_TABS.find((tab) => tab.value === reportType) ?? REPORT_TYPE_TABS[0];
 
   const generateReport = () => {
-    if (!reportType || !reportName) {
-      toast.error('Please fill in all required fields');
+    if (!reportType) {
+      toast.error('Please select a report type');
       return;
     }
+
+    // Use selected report title as default name if not provided
+    const finalReportName = reportName || selectedReport.title;
 
     setIsGenerating(true);
 
@@ -108,8 +115,11 @@ export function Reports({ reports }: ReportsProps) {
       'incident': 'full',
       'custom': reportType, // Use as-is
       'iam': 'iam',
+      'iam-security': 'iam',
       'ec2': 'ec2',
+      'ec2-security': 'ec2',
       's3': 's3',
+      's3-security': 's3',
       'security-hub': 'security-hub',
       'guardduty': 'guardduty',
       'config': 'config',
@@ -118,6 +128,8 @@ export function Reports({ reports }: ReportsProps) {
     };
     
     const scannerType = scannerTypeMap[reportType] || reportType;
+    
+    let scanData: ScanResultData;
     
     // For comprehensive reports, combine all available scan results
     if (reportType === 'comprehensive' || reportType === 'incident') {
@@ -230,19 +242,19 @@ export function Reports({ reports }: ReportsProps) {
     try {
       // Export in selected formats
       if (exportFormats.pdf) {
-        exportScanResultToPDF(scanData, reportName);
+        exportScanResultToPDF(scanData, finalReportName);
         toast.success('PDF report generated', {
           description: 'The report will open in a new window for printing'
         });
       }
 
       if (exportFormats.csv) {
-        exportScanResultToCSV(scanData, `${reportName}.csv`);
+        exportScanResultToCSV(scanData, `${finalReportName}.csv`);
         toast.success('CSV report downloaded');
       }
 
       if (exportFormats.json) {
-        exportScanResultToJSON(scanData, `${reportName}.json`);
+        exportScanResultToJSON(scanData, `${finalReportName}.json`);
         toast.success('JSON report downloaded');
       }
 
@@ -258,15 +270,15 @@ export function Reports({ reports }: ReportsProps) {
         setShowGenerateDialog(false);
         setReportName("");
         setReportDescription("");
-        setReportType("");
+        setReportType(DEFAULT_REPORT_TYPE);
       }, 1000);
 
     } catch (error) {
       setIsGenerating(false);
-      setShowGenerateDialog(false);
-      setReportDescription("");
-      setReportType(DEFAULT_REPORT_TYPE);
-    }, 3000);
+      toast.error('Failed to generate report', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -300,19 +312,19 @@ export function Reports({ reports }: ReportsProps) {
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="report-type">Report Type</Label>
-              <Select value={reportType} onValueChange={setReportType}>
-                <SelectTrigger className="bg-input border-border">
-                  <SelectValue placeholder="Select report type" />
-                </SelectTrigger>
-                <SelectContent>
+                <Label htmlFor="report-type">Report Type</Label>
+                <Select value={reportType} onValueChange={setReportType}>
+                  <SelectTrigger className="bg-input border-border">
+                    <SelectValue placeholder="Select report type" />
+                  </SelectTrigger>
+                  <SelectContent>
                   {REPORT_TYPE_TABS.map((tab) => (
                     <SelectItem key={tab.value} value={tab.value}>
                       {tab.label}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
               <div className="rounded-md border border-dashed border-border bg-muted/40 p-4 space-y-1">
                 <h4 className="text-sm font-medium">
                   {selectedReport.title}
@@ -324,6 +336,16 @@ export function Reports({ reports }: ReportsProps) {
             </div>
             
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="report-name">Report Name</Label>
+                <Input 
+                  id="report-name"
+                  value={reportName}
+                  onChange={(e) => setReportName(e.target.value)}
+                  placeholder="Enter report name..."
+                  className="bg-input border-border"
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="report-description">Description</Label>
                 <Textarea 
@@ -390,72 +412,94 @@ export function Reports({ reports }: ReportsProps) {
       </Card>
 
       {reports.length > 0 && (
-        <Card className="cyber-card">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Report History</CardTitle>
-              <div className="flex gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search reports..."
-                    className="pl-10 bg-input border-border w-64"
-                  />
-                </div>
-                <Button variant="outline" className="border-border">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filter
-                </Button>
+      <Card className="cyber-card">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Report History</CardTitle>
+            <div className="flex gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search reports..."
+                  className="pl-10 bg-input border-border w-64"
+                />
               </div>
+              <Button variant="outline" className="border-border">
+                <Filter className="h-4 w-4 mr-2" />
+                Filter
+              </Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border">
-                  <TableHead>Report Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Threats Found</TableHead>
-                  <TableHead>Processes</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow className="border-border">
+                <TableHead>Report Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Threats Found</TableHead>
+                <TableHead>Processes</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
                 {reports.map((report) => (
-                  <TableRow key={report.id} className="border-border">
-                    <TableCell className="font-medium">{report.name}</TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant="outline" 
-                        className={getTypeColor(report.type)}
-                      >
-                        {report.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-mono">{report.date}</TableCell>
-                    <TableCell>
-                      <Badge 
-                        className={getStatusColor(report.status)}
-                      >
-                        {report.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className={report.threats > 10 ? "text-[#ff0040]" : report.threats > 0 ? "text-[#ffb000]" : "text-[#00ff88]"}>
-                        {report.threats}
-                      </span>
-                    </TableCell>
-                    <TableCell>{report.processes}</TableCell>
-                    <TableCell>{report.size}</TableCell>
+                <TableRow key={report.id} className="border-border">
+                  <TableCell className="font-medium">{report.name}</TableCell>
+                  <TableCell>
+                    <Badge 
+                      variant="outline" 
+                      className={getTypeColor(report.type)}
+                    >
+                      {report.type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-mono">{report.date}</TableCell>
+                  <TableCell>
+                    <Badge 
+                      className={getStatusColor(report.status)}
+                    >
+                      {report.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className={report.threats > 10 ? "text-[#ff0040]" : report.threats > 0 ? "text-[#ffb000]" : "text-[#00ff88]"}>
+                      {report.threats}
+                    </span>
+                  </TableCell>
+                  <TableCell>{report.processes}</TableCell>
+                  <TableCell>{report.size}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button 
                           variant="ghost" 
                           size="icon" 
                           className="h-8 w-8 hover:bg-accent/20"
+                          onClick={() => {
+                            // Find corresponding scan result and generate report
+                            const scanResult = getScanResult('full');
+                            if (scanResult) {
+                              // Generate PDF from scan result
+                              const scanData: ScanResultData = {
+                                scan_id: scanResult.scan_id,
+                                scanner_type: scanResult.scanner_type,
+                                region: scanResult.region,
+                                status: scanResult.status,
+                                timestamp: scanResult.timestamp,
+                                results: scanResult.results,
+                                scan_summary: scanResult.scan_summary,
+                                findings: scanResult.findings
+                              };
+                              exportScanResultToPDF(scanData, report.name);
+                            } else {
+                              toast.warning('Scan data not available', {
+                                description: 'The scan results for this report are no longer available'
+                              });
+                            }
+                          }}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -464,17 +508,33 @@ export function Reports({ reports }: ReportsProps) {
                           size="icon" 
                           className="h-8 w-8 hover:bg-accent/20"
                           disabled={report.status === "In Progress"}
+                          onClick={() => {
+                            const scanResult = getScanResult('full');
+                            if (scanResult) {
+                              const scanData: ScanResultData = {
+                                scan_id: scanResult.scan_id,
+                                scanner_type: scanResult.scanner_type,
+                                region: scanResult.region,
+                                status: scanResult.status,
+                                timestamp: scanResult.timestamp,
+                                results: scanResult.results,
+                                scan_summary: scanResult.scan_summary,
+                                findings: scanResult.findings
+                              };
+                              exportScanResultToPDF(scanData, report.name);
+                            }
+                          }}
                         >
                           <Download className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
       )}
 
       {/* Report Templates */}
