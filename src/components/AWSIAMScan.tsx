@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { DemoModeBanner } from "./DemoModeBanner";
+import { scanIAM, type ScanResponse } from "../services/api";
+import { useScanResults } from "../context/ScanResultsContext";
 
 interface AWSIAMFinding {
   id: string;
@@ -198,6 +200,7 @@ export function AWSIAMScan() {
   const [selectedRegion, setSelectedRegion] = useState('us-east-1');
   const [awsProfile, setAwsProfile] = useState('default');
   const [loading, setLoading] = useState(false);
+  const { addScanResult } = useScanResults();
 
   // Toast notifications for scan events
   useEffect(() => {
@@ -221,81 +224,58 @@ export function AWSIAMScan() {
         description: 'Running Checkov security scan on IAM policies...'
       });
 
-      // Call the actual Checkov API endpoint
-      const response = await fetch('http://127.0.0.1:5000/api/v1/run-checkov', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      // Show loading state
+      setScanResult({
+        scan_id: 'loading',
+        status: 'Running',
+        progress: 0,
+        account_id: '',
+        region: selectedRegion,
+        total_resources: 0,
+        findings: [],
+        scan_summary: {
+          users: 0,
+          roles: 0,
+          policies: 0,
+          groups: 0,
+          critical_findings: 0,
+          high_findings: 0,
+          medium_findings: 0,
+          low_findings: 0
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`Checkov scan failed: ${response.statusText}`);
-      }
+      // Call the real API
+      const response: ScanResponse = await scanIAM(selectedRegion);
 
-      const checkovData = await response.json();
-      
-      // Simulate progress while Checkov runs
-      const progressInterval = setInterval(() => {
-        setScanResult(prev => {
-          if (!prev) {
-            return {
-              ...mockScanResult,
-              status: 'Running',
-              progress: 10,
-              findings: []
-            };
-          }
-          if (prev.progress < 90) {
-            return { ...prev, progress: Math.min(prev.progress + 20, 90) };
-          }
-          return prev;
-        });
-      }, 1000);
+      // Transform API response to component format
+      const transformedResult: AWSScanResult = {
+        scan_id: response.scan_id,
+        status: response.status === 'completed' ? 'Completed' : response.status === 'failed' ? 'Failed' : 'Running',
+        progress: response.status === 'completed' ? 100 : response.status === 'failed' ? 0 : 50,
+        account_id: response.results?.account_id || 'N/A',
+        region: response.region,
+        total_resources: (response.results?.users?.total || 0) + (response.results?.roles?.total || 0),
+        findings: response.results?.findings || mockAWSIAMFindings, // Use mock findings if API doesn't return them
+        scan_summary: {
+          users: response.results?.users?.total || 0,
+          roles: response.results?.roles?.total || 0,
+          policies: response.results?.policies?.total || 0,
+          groups: response.results?.groups?.total || 0,
+          critical_findings: response.results?.scan_summary?.critical_findings || 0,
+          high_findings: response.results?.scan_summary?.high_findings || 0,
+          medium_findings: response.results?.scan_summary?.medium_findings || 0,
+          low_findings: response.results?.scan_summary?.low_findings || 0
+        },
+        started_at: response.timestamp,
+        completed_at: response.timestamp
+      };
 
-      // Complete scan after 5 seconds (simulating Checkov execution time)
-      setTimeout(async () => {
-        clearInterval(progressInterval);
-        
-        try {
-          // Try to fetch the actual Checkov results
-          const resultsResponse = await fetch('http://127.0.0.1:5000/scanner-results/checkov-results.json');
-          let actualResults = null;
-          
-          if (resultsResponse.ok) {
-            actualResults = await resultsResponse.json();
-          }
-          
-          // Create scan result with Checkov data or fallback to mock
-          const finalResult = actualResults ? {
-            ...mockScanResult,
-            status: 'Completed',
-            progress: 100,
-            checkov_results: actualResults,
-            scan_summary: {
-              ...mockScanResult.scan_summary,
-              critical_findings: actualResults.summary?.failed || 0,
-              high_findings: actualResults.summary?.failed || 0,
-              medium_findings: 0,
-              low_findings: 0
-            }
-          } : mockScanResult;
-          
-          setScanResult(finalResult);
-          setIsScanning(false);
-          
-          toast.success('Checkov scan completed successfully!', {
-            description: `Found ${finalResult.checkov_results?.summary?.failed || 0} security issues`
-          });
-        } catch (resultsError) {
-          // Fallback to mock data if results can't be fetched
-          setScanResult(mockScanResult);
-          setIsScanning(false);
-          toast.warning('Checkov scan completed with limited results', {
-            description: 'Using demo data for display'
-          });
-        }
-      }, 5000);
+      setScanResult(transformedResult);
+      setIsScanning(false);
+
+      // Store in context for Reports component
+      addScanResult(response);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
