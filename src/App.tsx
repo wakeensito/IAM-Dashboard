@@ -15,8 +15,10 @@ import { CloudSecurityAlerts } from "./components/CloudSecurityAlerts";
 import { Reports } from "./components/Reports";
 import { Settings } from "./components/Settings";
 import { Toaster } from "./components/ui/sonner";
+import RunCheckovButton from "./components/RunCheckovButton";
 import { ScanResultsProvider } from "./context/ScanResultsContext";
 import type { ReportRecord } from "./types/report";
+import { ComplianceDashboard } from "./components/ComplianceDashboard";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -29,7 +31,14 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return <Dashboard onNavigate={setActiveTab} onFullScanComplete={handleFullScanComplete} />;
+        return (
+          <div className="p-6">
+            <Dashboard onNavigate={setActiveTab} onFullScanComplete={handleFullScanComplete} />
+            <div className="mt-8 text-center">
+              <RunCheckovButton />
+            </div>
+          </div>
+        );
       case "security-hub":
         return <SecurityHub />;
       case "guardduty":
@@ -47,17 +56,62 @@ export default function App() {
       case "s3-security":
         return <S3Security />;
       case "network-security":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">VPC & Network Security</h2><p className="text-muted-foreground">Network security scanning coming soon...</p></div></div>;
+        return (
+          <div className="p-6">
+            <div className="cyber-card p-8 text-center">
+              <h2 className="text-xl mb-4">VPC & Network Security</h2>
+              <p className="text-muted-foreground">
+                Network security scanning coming soon...
+              </p>
+            </div>
+          </div>
+        );
       case "database-security":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">RDS & Database Security</h2><p className="text-muted-foreground">Database security scanning coming soon...</p></div></div>;
+        return (
+          <div className="p-6">
+            <div className="cyber-card p-8 text-center">
+              <h2 className="text-xl mb-4">RDS & Database Security</h2>
+              <p className="text-muted-foreground">
+                Database security scanning coming soon...
+              </p>
+            </div>
+          </div>
+        );
       case "lambda-security":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">Lambda & Serverless Security</h2><p className="text-muted-foreground">Serverless security scanning coming soon...</p></div></div>;
+        return (
+          <div className="p-6">
+            <div className="cyber-card p-8 text-center">
+              <h2 className="text-xl mb-4">Lambda & Serverless Security</h2>
+              <p className="text-muted-foreground">
+                Serverless security scanning coming soon...
+              </p>
+            </div>
+          </div>
+        );
       case "cloudtrail":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">CloudTrail Monitoring</h2><p className="text-muted-foreground">CloudTrail analysis coming soon...</p></div></div>;
+        return (
+          <div className="p-6">
+            <div className="cyber-card p-8 text-center">
+              <h2 className="text-xl mb-4">CloudTrail Monitoring</h2>
+              <p className="text-muted-foreground">
+                CloudTrail analysis coming soon...
+              </p>
+            </div>
+          </div>
+        );
       case "compliance":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">Compliance Dashboard</h2><p className="text-muted-foreground">Comprehensive compliance tracking coming soon...</p></div></div>;
+        return <ComplianceDashboard />;
       case "cost-optimization":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">Cost & Optimization</h2><p className="text-muted-foreground">Cost optimization analysis coming soon...</p></div></div>;
+        return (
+          <div className="p-6">
+            <div className="cyber-card p-8 text-center">
+              <h2 className="text-xl mb-4">Cost & Optimization</h2>
+              <p className="text-muted-foreground">
+                Cost optimization analysis coming soon...
+              </p>
+            </div>
+          </div>
+        );
       case "alerts":
         return <CloudSecurityAlerts />;
       case "grafana":
@@ -81,7 +135,7 @@ export default function App() {
             {renderContent()}
           </main>
         </div>
-        <Toaster 
+        <Toaster
           position="top-right"
           theme="dark"
           toastOptions={{
