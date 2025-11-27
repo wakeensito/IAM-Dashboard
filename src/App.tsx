@@ -14,11 +14,10 @@ import { GrafanaIntegration } from "./components/GrafanaIntegration";
 import { CloudSecurityAlerts } from "./components/CloudSecurityAlerts";
 import { Reports } from "./components/Reports";
 import { Settings } from "./components/Settings";
+import { ComplianceDashboard } from "./components/ComplianceDashboard";
 import { Toaster } from "./components/ui/sonner";
-import RunCheckovButton from "./components/RunCheckovButton";
 import { ScanResultsProvider } from "./context/ScanResultsContext";
 import type { ReportRecord } from "./types/report";
-import { ComplianceDashboard } from "./components/ComplianceDashboard";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -31,14 +30,7 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return (
-          <div className="p-6">
-            <Dashboard onNavigate={setActiveTab} onFullScanComplete={handleFullScanComplete} />
-            <div className="mt-8 text-center">
-              <RunCheckovButton />
-            </div>
-          </div>
-        );
+        return <Dashboard onNavigate={setActiveTab} onFullScanComplete={handleFullScanComplete} />;
       case "security-hub":
         return <SecurityHub />;
       case "guardduty":

@@ -5,7 +5,6 @@ Main application entry point with API endpoints for AWS integrations
 
 import os
 import logging
-import subprocess  # ✅ for running Checkov
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_restful import Api
@@ -75,55 +74,6 @@ def create_app():
     @app.route('/<path:path>')
     def serve_static(path):
         return send_from_directory(app.static_folder, path)
-
-    # ------------------------
-    # ✅ Fixed Checkov Scan API Endpoint
-    # ------------------------
-    @app.route('/api/v1/run-checkov', methods=['POST'])
-    def run_checkov():
-        """
-        Runs Checkov security scan on the backend folder and writes results to scanner-results/checkov-results.json.
-        """
-        try:
-            # Ensure scanner-results directory exists
-            import os
-            os.makedirs("../scanner-results", exist_ok=True)
-
-            result = subprocess.run(
-                ["checkov", "-d", ".", "--output", "json",
-                    "--output-file-path", "../scanner-results/checkov-results.json"],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-
-            logger.info("✅ Checkov scan completed successfully.")
-            logger.info(result.stdout)  # log Checkov output
-
-            return jsonify({
-                "message": "Checkov scan completed successfully.",
-                "output_file": "scanner-results/checkov-results.json"
-            }), 200
-
-        except subprocess.CalledProcessError as e:
-            logger.error(f"❌ Checkov scan failed: {e}")
-            logger.error(f"STDOUT: {e.stdout}")
-            logger.error(f"STDERR: {e.stderr}")
-            return jsonify({
-                "error": f"Checkov scan failed: {str(e)}",
-                "stdout": e.stdout,
-                "stderr": e.stderr
-            }), 500
-
-    @app.route('/scanner-results/<filename>')
-    def serve_scanner_results(filename):
-        """
-        Serve scanner result files (Checkov, etc.) from the scanner-results directory.
-        """
-        try:
-            return send_from_directory('../scanner-results', filename)
-        except FileNotFoundError:
-            return jsonify({'error': 'File not found'}), 404
 
     # Error handlers
     @app.errorhandler(404)
