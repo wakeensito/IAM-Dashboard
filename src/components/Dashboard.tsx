@@ -58,11 +58,26 @@ function buildFullScanReport(scanResponse?: ScanResponse): ReportRecord {
   let totalThreats = 0;
   if (scanResponse?.results) {
     const results = scanResponse.results;
-    totalThreats = 
-      (results.scan_summary?.critical_findings || 0) +
-      (results.scan_summary?.high_findings || 0) +
-      (results.scan_summary?.medium_findings || 0) +
-      (results.scan_summary?.low_findings || 0);
+    
+    // For full scan, sum up threats from IAM and S3 only (simplified)
+    if (scanResponse.scanner_type === 'full') {
+      totalThreats = 
+        (results.iam?.scan_summary?.critical_findings || 0) +
+        (results.iam?.scan_summary?.high_findings || 0) +
+        (results.iam?.scan_summary?.medium_findings || 0) +
+        (results.iam?.scan_summary?.low_findings || 0) +
+        (results.s3?.scan_summary?.critical_findings || 0) +
+        (results.s3?.scan_summary?.high_findings || 0) +
+        (results.s3?.scan_summary?.medium_findings || 0) +
+        (results.s3?.scan_summary?.low_findings || 0);
+    } else {
+      // For individual scans, use the scan_summary directly
+      totalThreats = 
+        (results.scan_summary?.critical_findings || 0) +
+        (results.scan_summary?.high_findings || 0) +
+        (results.scan_summary?.medium_findings || 0) +
+        (results.scan_summary?.low_findings || 0);
+    }
   }
 
   return {

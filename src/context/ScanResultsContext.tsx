@@ -109,6 +109,24 @@ export function useScanResults() {
 function extractScanSummary(results: any): StoredScanResult['scan_summary'] {
   if (!results) return undefined;
 
+  // For full scan, combine summaries from IAM and S3 only (simplified)
+  if (results.scan_type === 'full' || (results.iam && results.s3)) {
+    return {
+      critical_findings: (results.iam?.scan_summary?.critical_findings || 0) +
+                        (results.s3?.scan_summary?.critical_findings || 0),
+      high_findings: (results.iam?.scan_summary?.high_findings || 0) +
+                    (results.s3?.scan_summary?.high_findings || 0),
+      medium_findings: (results.iam?.scan_summary?.medium_findings || 0) +
+                      (results.s3?.scan_summary?.medium_findings || 0),
+      low_findings: (results.iam?.scan_summary?.low_findings || 0) +
+                   (results.s3?.scan_summary?.low_findings || 0),
+      users: results.iam?.users?.total || 0,
+      roles: results.iam?.roles?.total || 0,
+      policies: results.iam?.policies?.total || 0,
+      groups: results.iam?.groups?.total || 0
+    };
+  }
+
   // Try to find summary in different possible locations
   if (results.scan_summary) {
     return results.scan_summary;
@@ -159,6 +177,19 @@ function extractScanSummary(results: any): StoredScanResult['scan_summary'] {
  */
 function extractFindings(results: any): any[] {
   if (!results) return [];
+  
+  // For full scan, combine findings from IAM and S3 only (simplified)
+  if (results.scan_type === 'full' || (results.iam && results.s3)) {
+    const allFindings: any[] = [];
+    
+    // Extract findings from IAM and S3 only
+    if (results.iam?.findings) allFindings.push(...results.iam.findings);
+    if (results.s3?.findings) allFindings.push(...results.s3.findings);
+    
+    if (allFindings.length > 0) {
+      return allFindings;
+    }
+  }
   
   // Direct findings array
   if (Array.isArray(results.findings) && results.findings.length > 0) {
