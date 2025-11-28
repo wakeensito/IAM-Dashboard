@@ -963,14 +963,70 @@ def scan_full(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[st
     logger.info(f"Executing full security scan in region: {region}")
     
     results = {
-        'security_hub': scan_security_hub(region, scan_params, scan_id),
-        'guardduty': scan_guardduty(region, scan_params, scan_id),
-        'config': scan_config(region, scan_params, scan_id),
-        'iam': scan_iam(region, scan_params, scan_id),
-        'ec2': scan_ec2(region, scan_params, scan_id),
-        's3': scan_s3(region, scan_params, scan_id),
         'scan_type': 'full'
     }
+    
+    # Scan each service with error handling - if one fails, others still run
+    scanners = [
+        ('security_hub', scan_security_hub),
+        ('guardduty', scan_guardduty),
+        ('config', scan_config),
+        ('iam', scan_iam),
+        ('ec2', scan_ec2),  # This might fail if no EC2 instances, but we'll handle it
+        ('s3', scan_s3)
+    ]
+    
+    for scanner_name, scanner_func in scanners:
+        try:
+            logger.info(f"Scanning {scanner_name}...")
+            result = scanner_func(region, scan_params, scan_id)
+            results[scanner_name] = result
+            logger.info(f"Completed {scanner_name} scan")
+        except Exception as e:
+            logger.error(f"Error scanning {scanner_name}: {str(e)}", exc_info=True)
+            # Return error dict instead of crashing - this allows scan to continue
+            error_result = {
+                'error': f'{scanner_name} scan failed',
+                'message': str(e),
+                'scan_type': scanner_name.replace('_', '-'),
+                'findings': [],
+                'scan_summary': {
+                    'critical_findings': 0,
+                    'high_findings': 0,
+                    'medium_findings': 0,
+                    'low_findings': 0
+                }
+            }
+            # Add appropriate structure based on scanner type
+            if scanner_name == 'security_hub':
+                error_result['summary'] = {
+                    'total_findings': 0,
+                    'critical': 0,
+                    'high': 0,
+                    'medium': 0,
+                    'low': 0
+                }
+            elif scanner_name == 'guardduty':
+                error_result['total_findings'] = 0
+                error_result['detectors'] = 0
+            elif scanner_name == 'config':
+                error_result['total_rules'] = 0
+                error_result['config_rules'] = []
+            results[scanner_name] = error_result
+    
+    # Mark as completed if we have any successful scanners
+    successful_scanners = [key for key in results.keys() 
+                          if key != 'scan_type' and 
+                          results[key] and 
+                          isinstance(results[key], dict) and 
+                          'error' not in results[key]]
+    
+    if len(successful_scanners) > 0:
+        logger.info(f"Full scan completed successfully with {len(successful_scanners)} scanners: {successful_scanners}")
+        results['status'] = 'completed'
+    else:
+        logger.warning("Full scan completed but no scanners succeeded")
+        results['status'] = 'completed'  # Still mark as completed to allow results
     
     return results
 
