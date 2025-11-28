@@ -967,13 +967,12 @@ def scan_full(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[st
     }
     
     # Scan each service with error handling - if one fails, others still run
+    # SIMPLIFIED: Only run IAM and S3 - these are always available and connected to real APIs
+    # Skip Security Hub, GuardDuty, Config, Inspector, Macie (frontend uses mock data anyway)
+    # Skip EC2 (user doesn't have EC2 instances)
     scanners = [
-        ('security_hub', scan_security_hub),
-        ('guardduty', scan_guardduty),
-        ('config', scan_config),
-        ('iam', scan_iam),
-        ('ec2', scan_ec2),  # This might fail if no EC2 instances, but we'll handle it
-        ('s3', scan_s3)
+        ('iam', scan_iam),  # ✅ Real API - always available
+        ('s3', scan_s3)     # ✅ Real API - always available
     ]
     
     for scanner_name, scanner_func in scanners:
