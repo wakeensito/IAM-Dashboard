@@ -128,14 +128,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # For full scan, ensure status is 'completed'
             if scanner_type == 'full':
                 scan_result['status'] = 'completed'
-                # Ensure we have at least empty results for IAM and S3
+                # Ensure we have at least empty results for IAM
                 if 'iam' not in scan_result:
                     scan_result['iam'] = {
-                        'findings': [],
-                        'scan_summary': {'critical_findings': 0, 'high_findings': 0, 'medium_findings': 0, 'low_findings': 0}
-                    }
-                if 's3' not in scan_result:
-                    scan_result['s3'] = {
                         'findings': [],
                         'scan_summary': {'critical_findings': 0, 'high_findings': 0, 'medium_findings': 0, 'low_findings': 0}
                     }
