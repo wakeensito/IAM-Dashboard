@@ -453,6 +453,135 @@ def scan_macie(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[s
         raise
 
 
+def analyze_policy_document(policy_doc: Dict[str, Any], role_name: str, role_arn: str, 
+                           service_types: list, policy_name: str = None) -> list:
+    """Analyze IAM policy document for security issues"""
+    findings = []
+    
+    if not policy_doc:
+        return findings
+    
+    statements = policy_doc.get('Statement', [])
+    if isinstance(statements, dict):
+        statements = [statements]
+    
+    for statement in statements:
+        effect = statement.get('Effect', '')
+        actions = statement.get('Action', [])
+        resources = statement.get('Resource', [])
+        
+        if isinstance(actions, str):
+            actions = [actions]
+        if isinstance(resources, str):
+            resources = [resources]
+        
+        # Check for overly permissive actions
+        for action in actions:
+            # Check for full wildcard permissions
+            if action == '*' or action == '*:*':
+                findings.append({
+                    'severity': 'Critical',
+                    'type': 'role',
+                    'resource_name': role_name,
+                    'resource_arn': role_arn,
+                    'description': f'Role "{role_name}" has full wildcard permissions (*) in policy "{policy_name or "attached"}"',
+                    'recommendation': 'Replace wildcard permissions with specific actions following least privilege',
+                    'finding_type': 'wildcard_permissions',
+                    'service_type': ', '.join(service_types) if service_types else 'Unknown'
+                })
+            
+            # Check for service-wide wildcards
+            if ':*' in action and action.count(':') == 1:
+                service = action.split(':')[0]
+                findings.append({
+                    'severity': 'High',
+                    'type': 'role',
+                    'resource_name': role_name,
+                    'resource_arn': role_arn,
+                    'description': f'Role "{role_name}" has full {service} service permissions ({action}) in policy "{policy_name or "attached"}"',
+                    'recommendation': f'Replace {action} with specific {service} actions only',
+                    'finding_type': 'service_wildcard_permissions',
+                    'service_type': ', '.join(service_types) if service_types else 'Unknown'
+                })
+            
+            # Service-specific security checks
+            if action.startswith('s3:'):
+                # S3 security checks
+                if action in ['s3:PutObject', 's3:PutObjectAcl'] and '*' in resources:
+                    findings.append({
+                        'severity': 'High',
+                        'type': 'role',
+                        'resource_name': role_name,
+                        'resource_arn': role_arn,
+                        'description': f'Role "{role_name}" allows {action} on all S3 buckets in policy "{policy_name or "attached"}"',
+                        'recommendation': 'Restrict S3 permissions to specific buckets and enable public access block',
+                        'finding_type': 's3_public_write',
+                        'service_type': 'S3'
+                    })
+            
+            if action.startswith('dynamodb:'):
+                # DynamoDB security checks
+                if action in ['dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem'] and '*' in resources:
+                    findings.append({
+                        'severity': 'Medium',
+                        'type': 'role',
+                        'resource_name': role_name,
+                        'resource_arn': role_arn,
+                        'description': f'Role "{role_name}" allows {action} on all DynamoDB tables in policy "{policy_name or "attached"}"',
+                        'recommendation': 'Restrict DynamoDB permissions to specific tables',
+                        'finding_type': 'dynamodb_broad_permissions',
+                        'service_type': 'DynamoDB'
+                    })
+            
+            if action.startswith('lambda:'):
+                # Lambda security checks
+                if action == 'lambda:*' or action == 'lambda:InvokeFunction':
+                    if '*' in resources:
+                        findings.append({
+                            'severity': 'High',
+                            'type': 'role',
+                            'resource_name': role_name,
+                            'resource_arn': role_arn,
+                            'description': f'Role "{role_name}" allows invoking all Lambda functions in policy "{policy_name or "attached"}"',
+                            'recommendation': 'Restrict Lambda invoke permissions to specific functions',
+                            'finding_type': 'lambda_public_invoke',
+                            'service_type': 'Lambda'
+                        })
+            
+            if action.startswith('iam:'):
+                # IAM security checks
+                if action in ['iam:CreateUser', 'iam:CreateRole', 'iam:AttachRolePolicy', 'iam:PutRolePolicy']:
+                    findings.append({
+                        'severity': 'High',
+                        'type': 'role',
+                        'resource_name': role_name,
+                        'resource_arn': role_arn,
+                        'description': f'Role "{role_name}" can create/modify IAM resources ({action}) in policy "{policy_name or "attached"}"',
+                        'recommendation': 'Review if this permission is necessary and restrict to specific resources',
+                        'finding_type': 'iam_privilege_escalation',
+                        'service_type': ', '.join(service_types) if service_types else 'IAM'
+                    })
+        
+        # Check for public/external resource access
+        for resource in resources:
+            if resource == '*':
+                # Check if this is combined with dangerous actions
+                dangerous_actions = [a for a in actions if any(x in a for x in ['Put', 'Delete', 'Modify', 'Create', 'Update'])]
+                if dangerous_actions:
+                    findings.append({
+                        'severity': 'High',
+                        'type': 'role',
+                        'resource_name': role_name,
+                        'resource_arn': role_arn,
+                        'description': f'Role "{role_name}" has write permissions on all resources (*) in policy "{policy_name or "attached"}"',
+                        'recommendation': 'Restrict resource ARNs to specific resources only',
+                        'finding_type': 'wildcard_resource',
+                        'service_type': ', '.join(service_types) if service_types else 'Unknown'
+                    })
+    
+    return findings
+
+
 def scan_iam(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str, Any]:
     """Scan IAM for security issues"""
     try:
@@ -589,15 +718,120 @@ def scan_iam(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
         roles = iam.list_roles()
         role_list = roles.get('Roles', [])
         
-        # Analyze roles for admin access
-        for role in role_list[:50]:  # Limit to first 50 roles
+        # Service principal mappings for infrastructure identification
+        service_principals = {
+            'lambda.amazonaws.com': 'Lambda',
+            'ec2.amazonaws.com': 'EC2',
+            'codebuild.amazonaws.com': 'CodeBuild',
+            'codepipeline.amazonaws.com': 'CodePipeline',
+            's3.amazonaws.com': 'S3',
+            'dynamodb.amazonaws.com': 'DynamoDB',
+            'apigateway.amazonaws.com': 'API Gateway',
+            'rds.amazonaws.com': 'RDS',
+            'ecs-tasks.amazonaws.com': 'ECS',
+            'eks.amazonaws.com': 'EKS',
+            'github.com': 'GitHub Actions',
+            'gitlab.com': 'GitLab CI',
+            'circleci.com': 'CircleCI'
+        }
+        
+        # Analyze roles for infrastructure security
+        for role in role_list[:100]:  # Increased limit to analyze more roles
             role_name = role['RoleName']
             role_arn = role.get('Arn', f'arn:aws:iam::{account_id}:role/{role_name}')
             
             try:
+                # Get role details including trust policy
+                role_details = iam.get_role(RoleName=role_name)
+                assume_role_policy = role_details.get('Role', {}).get('AssumeRolePolicyDocument', {})
+                
+                # Parse trust policy to identify service principals
+                service_types = []
+                public_access = False
+                external_principals = []
+                
+                if assume_role_policy:
+                    statements = assume_role_policy.get('Statement', [])
+                    if isinstance(statements, dict):
+                        statements = [statements]
+                    
+                    for statement in statements:
+                        principal = statement.get('Principal', {})
+                        if isinstance(principal, dict):
+                            # Check for AWS service principals
+                            aws_principals = principal.get('AWS', [])
+                            if isinstance(aws_principals, str):
+                                aws_principals = [aws_principals]
+                            
+                            # Check for service principals
+                            service_principal = principal.get('Service', '')
+                            if isinstance(service_principal, str) and service_principal:
+                                service_principal = [service_principal]
+                            elif isinstance(service_principal, list):
+                                pass  # Already a list
+                            else:
+                                service_principal = []
+                            
+                            if isinstance(service_principal, list):
+                                for sp in service_principal:
+                                    # Identify service type
+                                    for sp_key, service_name in service_principals.items():
+                                        if sp_key in sp:
+                                            if service_name not in service_types:
+                                                service_types.append(service_name)
+                                    # Check for public/external access
+                                    if '*' in sp or 'arn:aws:iam::*' in sp:
+                                        public_access = True
+                                    elif sp.startswith('arn:aws:iam::') and ':' in sp:
+                                        if account_id not in sp:
+                                            external_principals.append(sp)
+                            
+                            # Check for wildcard/public access in AWS principals
+                            if isinstance(aws_principals, list):
+                                for ap in aws_principals:
+                                    if ap == '*' or ap == 'arn:aws:iam::*:root':
+                                        public_access = True
+                                    elif isinstance(ap, str) and ':' in ap and account_id not in ap:
+                                        external_principals.append(ap)
+                        elif isinstance(principal, str):
+                            # Principal is a string (wildcard)
+                            if principal == '*':
+                                public_access = True
+                
+                # Flag public/external access
+                if public_access:
+                    critical_findings += 1
+                    findings.append({
+                        'severity': 'Critical',
+                        'type': 'role',
+                        'resource_name': role_name,
+                        'resource_arn': role_arn,
+                        'description': f'Role "{role_name}" allows public/external access (wildcard principal)',
+                        'recommendation': 'Restrict trust policy to specific principals only',
+                        'finding_type': 'public_trust_policy',
+                        'service_type': ', '.join(service_types) if service_types else 'Unknown'
+                    })
+                
+                if external_principals:
+                    high_findings += 1
+                    findings.append({
+                        'severity': 'High',
+                        'type': 'role',
+                        'resource_name': role_name,
+                        'resource_arn': role_arn,
+                        'description': f'Role "{role_name}" allows access from external AWS accounts: {", ".join(external_principals[:3])}',
+                        'recommendation': 'Review and restrict to trusted accounts only',
+                        'finding_type': 'external_account_access',
+                        'service_type': ', '.join(service_types) if service_types else 'Unknown'
+                    })
+                
+                # Analyze attached policies
                 attached_policies = iam.list_attached_role_policies(RoleName=role_name)
                 for policy in attached_policies.get('AttachedPolicies', []):
-                    if 'AdministratorAccess' in policy.get('PolicyArn', ''):
+                    policy_arn = policy.get('PolicyArn', '')
+                    
+                    # Check for AdministratorAccess
+                    if 'AdministratorAccess' in policy_arn:
                         critical_findings += 1
                         findings.append({
                             'severity': 'Critical',
@@ -606,11 +840,67 @@ def scan_iam(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
                             'resource_arn': role_arn,
                             'description': f'Role "{role_name}" has AdministratorAccess policy attached',
                             'recommendation': 'Remove AdministratorAccess and use least privilege principles',
-                            'finding_type': 'admin_access'
+                            'finding_type': 'admin_access',
+                            'service_type': ', '.join(service_types) if service_types else 'Unknown'
                         })
-                        break
-            except ClientError:
-                pass  # Skip if we can't check role policies
+                    
+                    # Get and analyze policy document
+                    try:
+                        policy_details = iam.get_policy(PolicyArn=policy_arn)
+                        default_version = policy_details.get('Policy', {}).get('DefaultVersionId')
+                        if default_version:
+                            policy_version = iam.get_policy_version(PolicyArn=policy_arn, VersionId=default_version)
+                            policy_doc = policy_version.get('PolicyVersion', {}).get('Document', {})
+                            
+                            # Analyze policy document for security issues
+                            policy_findings = analyze_policy_document(
+                                policy_doc, role_name, role_arn, service_types
+                            )
+                            findings.extend(policy_findings)
+                            # Update severity counts
+                            for pf in policy_findings:
+                                if pf['severity'] == 'Critical':
+                                    critical_findings += 1
+                                elif pf['severity'] == 'High':
+                                    high_findings += 1
+                                elif pf['severity'] == 'Medium':
+                                    medium_findings += 1
+                                elif pf['severity'] == 'Low':
+                                    low_findings += 1
+                    except ClientError:
+                        pass  # Skip if we can't get policy document
+                
+                # Analyze inline policies
+                try:
+                    inline_policies = iam.list_role_policies(RoleName=role_name)
+                    for inline_policy_name in inline_policies.get('PolicyNames', []):
+                        try:
+                            inline_policy = iam.get_role_policy(RoleName=role_name, PolicyName=inline_policy_name)
+                            policy_doc = inline_policy.get('PolicyDocument', {})
+                            
+                            # Analyze inline policy document
+                            policy_findings = analyze_policy_document(
+                                policy_doc, role_name, role_arn, service_types, inline_policy_name
+                            )
+                            findings.extend(policy_findings)
+                            # Update severity counts
+                            for pf in policy_findings:
+                                if pf['severity'] == 'Critical':
+                                    critical_findings += 1
+                                elif pf['severity'] == 'High':
+                                    high_findings += 1
+                                elif pf['severity'] == 'Medium':
+                                    medium_findings += 1
+                                elif pf['severity'] == 'Low':
+                                    low_findings += 1
+                        except ClientError:
+                            pass  # Skip if we can't get inline policy
+                except ClientError:
+                    pass  # Skip if we can't list inline policies
+                    
+            except ClientError as e:
+                logger.warning(f"Error analyzing role {role_name}: {str(e)}")
+                continue
         
         # List policies
         policies = iam.list_policies(Scope='Local', MaxItems=100)
