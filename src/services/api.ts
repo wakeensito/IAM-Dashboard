@@ -77,8 +77,7 @@ async function apiRequest<T>(
         results: {
           scan_type: 'full',
           status: 'completed',
-          iam: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } },
-          s3: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } }
+          iam: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } }
         },
         timestamp: new Date().toISOString()
       } as T;
@@ -94,14 +93,13 @@ async function apiRequest<T>(
       responseData.status = 'completed';
     }
     // Ensure results exist
-    if (!responseData.results) {
-      responseData.results = {
-        scan_type: 'full',
-        status: 'completed',
-        iam: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } },
-        s3: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } }
-      };
-    }
+        if (!responseData.results) {
+          responseData.results = {
+            scan_type: 'full',
+            status: 'completed',
+            iam: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } }
+          };
+        }
     return responseData as T;
   }
 

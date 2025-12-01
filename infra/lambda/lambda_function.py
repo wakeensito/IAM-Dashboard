@@ -152,10 +152,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'iam': {
                         'findings': [],
                         'scan_summary': {'critical_findings': 0, 'high_findings': 0, 'medium_findings': 0, 'low_findings': 0}
-                    },
-                    's3': {
-                        'findings': [],
-                        'scan_summary': {'critical_findings': 0, 'high_findings': 0, 'medium_findings': 0, 'low_findings': 0}
                     }
                 }
             else:
@@ -1020,10 +1016,9 @@ def scan_full(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[st
     }
     
     # Scan each service with comprehensive error handling
-    # SIMPLIFIED: Only run IAM and S3 - these are always available and connected to real APIs
+    # SIMPLIFIED: Only run IAM - always available and connected to real API
     scanners = [
-        ('iam', scan_iam),  # ✅ Real API - always available
-        ('s3', scan_s3)     # ✅ Real API - always available
+        ('iam', scan_iam)  # ✅ Real API - always available
     ]
     
     successful_scanners = []
@@ -1112,10 +1107,6 @@ def scan_full(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[st
                 'error': 'Failed to serialize scan results',
                 'message': str(e)[:500],
                 'iam': {
-                    'findings': [],
-                    'scan_summary': {'critical_findings': 0, 'high_findings': 0, 'medium_findings': 0, 'low_findings': 0}
-                },
-                's3': {
                     'findings': [],
                     'scan_summary': {'critical_findings': 0, 'high_findings': 0, 'medium_findings': 0, 'low_findings': 0}
                 }

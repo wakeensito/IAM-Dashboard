@@ -59,17 +59,13 @@ function buildFullScanReport(scanResponse?: ScanResponse): ReportRecord {
   if (scanResponse?.results) {
     const results = scanResponse.results;
     
-    // For full scan, sum up threats from IAM and S3 only (simplified)
+    // For full scan, sum up threats from IAM only
     if (scanResponse.scanner_type === 'full') {
       totalThreats = 
         (results.iam?.scan_summary?.critical_findings || 0) +
         (results.iam?.scan_summary?.high_findings || 0) +
         (results.iam?.scan_summary?.medium_findings || 0) +
-        (results.iam?.scan_summary?.low_findings || 0) +
-        (results.s3?.scan_summary?.critical_findings || 0) +
-        (results.s3?.scan_summary?.high_findings || 0) +
-        (results.s3?.scan_summary?.medium_findings || 0) +
-        (results.s3?.scan_summary?.low_findings || 0);
+        (results.iam?.scan_summary?.low_findings || 0);
     } else {
       // For individual scans, use the scan_summary directly
       totalThreats = 
@@ -283,8 +279,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
           results: {
             scan_type: 'full',
             status: 'completed',
-            iam: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } },
-            s3: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } }
+            iam: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } }
           },
           timestamp: new Date().toISOString()
         };
@@ -304,8 +299,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
           response.results = {
             scan_type: 'full',
             status: 'completed',
-            iam: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } },
-            s3: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } }
+            iam: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } }
           };
         }
         // Ensure results have completed status
@@ -329,7 +323,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       }
       
       // Check if there were any errors in the results
-      const hasErrors = response.results?.iam?.error || response.results?.s3?.error;
+      const hasErrors = response.results?.iam?.error;
       const hasFindings = report.threats > 0;
       
       if (hasErrors && !hasFindings) {
@@ -371,8 +365,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
         results: {
           scan_type: 'full',
           status: 'completed',
-          iam: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } },
-          s3: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } }
+          iam: { findings: [], scan_summary: { critical_findings: 0, high_findings: 0, medium_findings: 0, low_findings: 0 } }
         },
         timestamp: new Date().toISOString()
       };
