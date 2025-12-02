@@ -26,6 +26,7 @@ inspector = boto3.client('inspector2')
 macie = boto3.client('macie2')
 iam = boto3.client('iam')
 ec2 = boto3.client('ec2')
+cloudwatch = boto3.client('cloudwatch')
 
 # Environment variables
 DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'iam-dashboard-scan-results')
@@ -72,6 +73,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         "scan_parameters": {...}
     }
     """
+    start_time = datetime.utcnow()
+    scan_start_time = datetime.utcnow()
+    
     try:
         logger.info(f"Received event: {json.dumps(event)}")
         
@@ -106,6 +110,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Validate scanner type
         valid_scanners = ['security-hub', 'guardduty', 'config', 'inspector', 'macie', 'iam', 'ec2', 's3', 'full']
         if scanner_type not in valid_scanners:
+            publish_metric('ScanErrors', 1, {'ScannerType': scanner_type, 'ErrorType': 'InvalidScannerType'})
             return create_response(400, {
                 'error': f'Invalid scanner type. Must be one of: {", ".join(valid_scanners)}'
             })
@@ -116,6 +121,35 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         try:
             scan_result = execute_scan(scanner_type, region, scan_params, scan_id)
+            scan_duration = (datetime.utcnow() - scan_start_time).total_seconds()
+            
+            # Publish success metrics
+            publish_metric('ScanSuccess', 1, {'ScannerType': scanner_type, 'Region': region})
+            publish_metric('ScanDuration', scan_duration, {'ScannerType': scanner_type, 'Region': region})
+            
+            # Publish finding counts if available
+            if 'summary' in scan_result:
+                summary = scan_result['summary']
+                if 'total_findings' in summary:
+                    publish_metric('FindingsCount', summary['total_findings'], {
+                        'ScannerType': scanner_type,
+                        'Region': region,
+                        'Severity': 'Total'
+                    })
+                    
+        except Exception as scan_error:
+            logger.error(f"Error executing scan: {str(scan_error)}", exc_info=True)
+            publish_metric('ScanErrors', 1, {
+                'ScannerType': scanner_type,
+                'Region': region,
+                'ErrorType': 'ScanExecutionFailed'
+            })
+            return create_response(500, {
+                'error': 'Scan execution failed',
+                'message': str(scan_error),
+                'scan_id': scan_id,
+                'scanner_type': scanner_type
+            })
             
             # Ensure scan_result is a dict
             if not isinstance(scan_result, dict):
@@ -193,8 +227,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Store results (non-blocking - don't fail if storage fails)
         try:
             store_results(scan_id, scanner_type, region, scan_result)
+            publish_metric('ResultsStored', 1, {'ScannerType': scanner_type, 'Region': region})
         except Exception as storage_error:
             logger.warning(f"Error storing results (non-fatal): {str(storage_error)}")
+            publish_metric('StorageErrors', 1, {'ScannerType': scanner_type, 'Region': region})
+        
+        # Publish total execution time
+        total_duration = (datetime.utcnow() - start_time).total_seconds()
+        publish_metric('TotalExecutionTime', total_duration, {'ScannerType': scanner_type, 'Region': region})
         
         # Return response - ALWAYS return 200 for full scan to show results
         response_status = 200 if scanner_type == 'full' else 200
@@ -209,6 +249,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
     except Exception as e:
         logger.error(f"Error in lambda_handler: {str(e)}", exc_info=True)
+        publish_metric('ScanErrors', 1, {'ErrorType': 'InternalServerError'})
         return create_response(500, {
             'error': 'Internal server error',
             'message': str(e)
@@ -1477,6 +1518,33 @@ def store_results(scan_id: str, scanner_type: str, region: str, scan_result: Dic
             
     except Exception as e:
         logger.error(f"Error storing results: {str(e)}")
+
+
+def publish_metric(metric_name: str, value: float, dimensions: Optional[Dict[str, str]] = None) -> None:
+    """Publish custom CloudWatch metric"""
+    try:
+        namespace = f"{PROJECT_NAME}/{ENVIRONMENT}"
+        metric_data = {
+            'MetricName': metric_name,
+            'Value': value,
+            'Unit': 'Count' if 'Count' in metric_name or 'Errors' in metric_name or 'Success' in metric_name else 'Seconds',
+            'Timestamp': datetime.utcnow(),
+            'Dimensions': []
+        }
+        
+        if dimensions:
+            metric_data['Dimensions'] = [
+                {'Name': k, 'Value': v}
+                for k, v in dimensions.items()
+            ]
+        
+        cloudwatch.put_metric_data(
+            Namespace=namespace,
+            MetricData=[metric_data]
+        )
+        logger.debug(f"Published metric: {metric_name} = {value}")
+    except Exception as e:
+        logger.warning(f"Failed to publish metric {metric_name}: {str(e)}")
 
 
 def create_response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:

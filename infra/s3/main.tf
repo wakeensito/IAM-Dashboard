@@ -16,11 +16,11 @@ resource "aws_s3_bucket" "frontend" {
   bucket = var.s3_bucket_name
 
   tags = {
-    Name    = var.s3_bucket_name
-    Project = var.project_name
-    Env     = var.environment
+    Name      = var.s3_bucket_name
+    Project   = var.project_name
+    Env       = var.environment
     ManagedBy = "terraform"
-    Purpose = "static-hosting"
+    Purpose   = "static-hosting"
   }
 }
 

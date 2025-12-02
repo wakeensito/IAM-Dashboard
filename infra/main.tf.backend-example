@@ -1,0 +1,35 @@
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+
+  # Local backend for testing (comment out S3 backend above)
+  # This allows testing without S3 bucket access
+  # backend "local" {
+  #   path = "terraform.tfstate"
+  # }
+
+  # Remote backend configuration - uses S3 for state storage
+  # This allows GitHub Actions and local development to share the same state
+  # Uncomment this when you have S3 bucket access
+  backend "s3" {
+    bucket  = "iam-dashboard-project"
+    key     = "terraform/state/terraform.tfstate"
+    region  = "us-east-1"
+    encrypt = true
+    # DynamoDB table for state locking (optional but recommended)
+    # dynamodb_table = "terraform-state-lock"
+  }
+}
+
+
+
+
+
+
+
+

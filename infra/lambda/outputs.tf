@@ -23,3 +23,8 @@ output "lambda_role_name" {
   value       = aws_iam_role.lambda_role.name
 }
 
+output "lambda_timeout" {
+  description = "Lambda function timeout in seconds"
+  value       = aws_lambda_function.scanner.timeout
+}
+

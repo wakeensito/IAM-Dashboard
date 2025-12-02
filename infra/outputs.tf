@@ -23,3 +23,13 @@ output "github_actions_role_arn" {
   value       = module.github_actions.github_actions_role_arn
 }
 
+output "cloudwatch_dashboard_url" {
+  description = "CloudWatch Dashboard URL"
+  value       = module.cloudwatch.dashboard_url
+}
+
+output "cloudwatch_dashboard_name" {
+  description = "CloudWatch Dashboard name"
+  value       = module.cloudwatch.dashboard_name
+}
+

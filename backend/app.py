@@ -5,7 +5,8 @@ Main application entry point with API endpoints for AWS integrations
 
 import os
 import logging
-from flask import Flask, jsonify, request, send_from_directory
+import time
+from flask import Flask, jsonify, request, send_from_directory, g
 from flask_cors import CORS
 from flask_restful import Api
 from werkzeug.exceptions import NotFound
@@ -24,6 +25,7 @@ from api.health import HealthResource
 from services.aws_service import AWSService
 from services.grafana_service import GrafanaService
 from services.database_service import DatabaseService
+from services.cloudwatch_service import CloudWatchService
 
 # Configure logging
 logging.basicConfig(
@@ -55,7 +57,24 @@ def create_app():
     aws_service = AWSService()
     grafana_service = GrafanaService()
     database_service = DatabaseService()
-
+    cloudwatch_service = CloudWatchService(
+        namespace=os.environ.get('CLOUDWATCH_NAMESPACE', 'IAMDash/dev'),
+        region=os.environ.get('AWS_REGION', 'us-east-1')
+    )
+    
+    # Middleware for CloudWatch metrics tracking
+    @app.before_request
+    def before_request():
+        g.start_time = time.time()
+    
+    @app.after_request
+    def after_request(response):
+        if hasattr(g, 'start_time'):
+            duration = (time.time() - g.start_time) * 1000  # Convert to milliseconds
+            endpoint = request.endpoint or request.path
+            cloudwatch_service.track_api_request(endpoint, response.status_code, duration)
+        return response
+    
     # Register API resources
     api.add_resource(HealthResource, '/health')
     api.add_resource(DashboardResource, '/dashboard')
