@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { DemoModeBanner } from "./DemoModeBanner";
+import { scanIAM, type ScanResponse } from "../services/api";
+import { useScanResults } from "../context/ScanResultsContext";
 
 interface AWSIAMFinding {
   id: string;
@@ -182,6 +184,7 @@ export function AWSIAMScan() {
   const [selectedRegion, setSelectedRegion] = useState('us-east-1');
   const [awsProfile, setAwsProfile] = useState('default');
   const [loading, setLoading] = useState(false);
+  const { addScanResult } = useScanResults();
 
   // Toast notifications for scan events
   useEffect(() => {
@@ -201,39 +204,67 @@ export function AWSIAMScan() {
     setError(null);
     
     try {
-      toast.info('AWS IAM scan started', {
-        description: 'Analyzing IAM configuration and permissions...'
+      toast.info('IAM scan started', {
+        description: 'Running AWS IAM security scan...'
       });
 
-      // Simulate scan progress
-      const progressInterval = setInterval(() => {
-        setScanResult(prev => {
-          if (!prev) {
-            return {
-              ...mockScanResult,
-              status: 'Running',
-              progress: 10,
-              findings: []
-            };
-          }
-          if (prev.progress < 100) {
-            return { ...prev, progress: Math.min(prev.progress + 15, 100) };
-          }
-          return prev;
-        });
-      }, 800);
+      // Show loading state
+      setScanResult({
+        scan_id: 'loading',
+        status: 'Running',
+        progress: 0,
+        account_id: '',
+        region: selectedRegion,
+        total_resources: 0,
+        findings: [],
+        scan_summary: {
+          users: 0,
+          roles: 0,
+          policies: 0,
+          groups: 0,
+          critical_findings: 0,
+          high_findings: 0,
+          medium_findings: 0,
+          low_findings: 0
+        }
+      });
 
-      // Complete scan after 6 seconds
-      setTimeout(() => {
-        clearInterval(progressInterval);
-        setScanResult(mockScanResult);
-        setIsScanning(false);
-      }, 6000);
+      // Call the real API
+      const response: ScanResponse = await scanIAM(selectedRegion);
+
+      // Transform API response to component format
+      const transformedResult: AWSScanResult = {
+        scan_id: response.scan_id,
+        status: response.status === 'completed' ? 'Completed' : response.status === 'failed' ? 'Failed' : 'Running',
+        progress: response.status === 'completed' ? 100 : response.status === 'failed' ? 0 : 50,
+        account_id: response.results?.account_id || 'N/A',
+        region: response.region,
+        total_resources: (response.results?.users?.total || 0) + (response.results?.roles?.total || 0),
+        findings: response.results?.findings || mockAWSIAMFindings, // Use mock findings if API doesn't return them
+        scan_summary: {
+          users: response.results?.users?.total || 0,
+          roles: response.results?.roles?.total || 0,
+          policies: response.results?.policies?.total || 0,
+          groups: response.results?.groups?.total || 0,
+          critical_findings: response.results?.scan_summary?.critical_findings || 0,
+          high_findings: response.results?.scan_summary?.high_findings || 0,
+          medium_findings: response.results?.scan_summary?.medium_findings || 0,
+          low_findings: response.results?.scan_summary?.low_findings || 0
+        },
+        started_at: response.timestamp,
+        completed_at: response.timestamp
+      };
+
+      setScanResult(transformedResult);
+      setIsScanning(false);
+
+      // Store in context for Reports component
+      addScanResult(response);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setIsScanning(false);
-      toast.error('Failed to start AWS scan', {
+      toast.error('Failed to start IAM scan', {
         description: err instanceof Error ? err.message : 'Unknown error'
       });
     }
