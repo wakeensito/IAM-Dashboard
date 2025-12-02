@@ -29,6 +29,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { DemoModeBanner } from "./DemoModeBanner";
+import { scanEC2, type ScanResponse } from "../services/api";
+import { useScanResults } from "../context/ScanResultsContext";
 
 interface EC2SecurityFinding {
   id: string;
@@ -195,6 +197,7 @@ export function EC2Security() {
   const [error, setError] = useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = useState('us-east-1');
   const [loading, setLoading] = useState(false);
+  const { addScanResult } = useScanResults();
 
   useEffect(() => {
     if (scanResult?.status === 'Completed') {
@@ -217,30 +220,58 @@ export function EC2Security() {
         description: 'Analyzing EC2 instances and security configurations...'
       });
 
-      // Simulate scan progress
-      const progressInterval = setInterval(() => {
-        setScanResult(prev => {
-          if (!prev) {
-            return {
-              ...mockEC2ScanResult,
-              status: 'Running',
-              progress: 15,
-              findings: []
-            };
-          }
-          if (prev.progress < 100) {
-            return { ...prev, progress: Math.min(prev.progress + 12, 100) };
-          }
-          return prev;
-        });
-      }, 700);
+      // Show loading state
+      setScanResult({
+        scan_id: 'loading',
+        status: 'Running',
+        progress: 0,
+        account_id: '',
+        region: selectedRegion,
+        total_instances: 0,
+        findings: [],
+        scan_summary: {
+          public_instances: 0,
+          without_imdsv2: 0,
+          unencrypted_volumes: 0,
+          open_security_groups: 0,
+          critical_findings: 0,
+          high_findings: 0,
+          medium_findings: 0,
+          low_findings: 0
+        }
+      });
 
-      // Complete scan after 7 seconds
-      setTimeout(() => {
-        clearInterval(progressInterval);
-        setScanResult(mockEC2ScanResult);
-        setIsScanning(false);
-      }, 7000);
+      // Call the real API
+      const response: ScanResponse = await scanEC2(selectedRegion);
+
+      // Transform API response to component format
+      const transformedResult: EC2ScanResult = {
+        scan_id: response.scan_id,
+        status: response.status === 'completed' ? 'Completed' : response.status === 'failed' ? 'Failed' : 'Running',
+        progress: response.status === 'completed' ? 100 : response.status === 'failed' ? 0 : 50,
+        account_id: response.results?.account_id || 'N/A',
+        region: response.region,
+        total_instances: response.results?.instances?.total || 0,
+        findings: response.results?.findings || [],
+        scan_summary: {
+          public_instances: response.results?.instances?.public || 0,
+          without_imdsv2: response.results?.instances?.without_imdsv2 || 0,
+          unencrypted_volumes: response.results?.instances?.unencrypted_volumes || 0,
+          open_security_groups: response.results?.instances?.open_security_groups || 0,
+          critical_findings: response.results?.instances?.public || 0,
+          high_findings: response.results?.instances?.without_imdsv2 || 0,
+          medium_findings: 0,
+          low_findings: 0
+        },
+        started_at: response.timestamp,
+        completed_at: response.timestamp
+      };
+
+      setScanResult(transformedResult);
+      setIsScanning(false);
+
+      // Store in context for Reports component
+      addScanResult(response);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

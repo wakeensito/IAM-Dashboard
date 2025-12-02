@@ -50,11 +50,65 @@ export function exportScanResultToPDF(data: ScanResultData, title: string = 'Sec
 }
 
 /**
+ * Extract findings from various possible locations in the data
+ */
+function extractFindings(data: ScanResultData): any[] {
+  // Try multiple locations where findings might be stored
+  if (data.findings && data.findings.length > 0) {
+    return data.findings;
+  }
+  
+  // Check in results object
+  if (data.results?.findings && Array.isArray(data.results.findings)) {
+    return data.results.findings;
+  }
+  
+  // Check for nested scan results (comprehensive reports)
+  if (data.results?.scans && Array.isArray(data.results.scans)) {
+    const allFindings: any[] = [];
+    data.results.scans.forEach((scan: any) => {
+      if (scan.findings && Array.isArray(scan.findings)) {
+        allFindings.push(...scan.findings);
+      }
+      if (scan.results?.findings && Array.isArray(scan.results.findings)) {
+        allFindings.push(...scan.results.findings);
+      }
+    });
+    return allFindings;
+  }
+  
+  // Check for IAM-specific findings
+  if (data.results?.iam_findings && Array.isArray(data.results.iam_findings)) {
+    return data.results.iam_findings;
+  }
+  
+  // Check for Security Hub findings
+  if (data.results?.security_hub_findings && Array.isArray(data.results.security_hub_findings)) {
+    return data.results.security_hub_findings;
+  }
+  
+  return [];
+}
+
+/**
  * Generate HTML content for the PDF report
  */
 function generateReportHTML(data: ScanResultData, title: string): string {
   const date = new Date(data.timestamp).toLocaleString();
   const summary = data.scan_summary || {};
+  const findings = extractFindings(data);
+  
+  // Group findings by severity
+  const findingsBySeverity = {
+    Critical: findings.filter((f: any) => (f.severity || '').toLowerCase() === 'critical'),
+    High: findings.filter((f: any) => (f.severity || '').toLowerCase() === 'high'),
+    Medium: findings.filter((f: any) => (f.severity || '').toLowerCase() === 'medium'),
+    Low: findings.filter((f: any) => (f.severity || '').toLowerCase() === 'low'),
+    Other: findings.filter((f: any) => {
+      const sev = (f.severity || '').toLowerCase();
+      return !['critical', 'high', 'medium', 'low'].includes(sev);
+    })
+  };
 
   return `
 <!DOCTYPE html>
@@ -194,40 +248,134 @@ function generateReportHTML(data: ScanResultData, title: string): string {
   </div>
   ` : ''}
 
-  ${data.findings && data.findings.length > 0 ? `
+  ${findings.length > 0 ? `
+  <div class="section">
+    <h2>Detailed Findings (${findings.length} total)</h2>
+    ${findingsBySeverity.Critical.length > 0 ? `
+    <div class="severity-section" style="margin: 20px 0;">
+      <h3 style="color: #ff0040; margin-bottom: 10px;">Critical Findings (${findingsBySeverity.Critical.length})</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Resource</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Recommendation</th>
+            <th>ARN</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${findingsBySeverity.Critical.map((finding: any) => `
+            <tr>
+              <td><strong>${finding.resource_name || finding.resource_id || 'N/A'}</strong></td>
+              <td>${finding.type || finding.finding_type || finding.resource_type || 'N/A'}</td>
+              <td>${finding.description || finding.title || 'No description available'}</td>
+              <td>${finding.recommendation || finding.remediation || 'Review and remediate'}</td>
+              <td style="font-size: 10px; word-break: break-all;">${finding.resource_arn || finding.arn || 'N/A'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    ` : ''}
+    
+    ${findingsBySeverity.High.length > 0 ? `
+    <div class="severity-section" style="margin: 20px 0;">
+      <h3 style="color: #ff6b35; margin-bottom: 10px;">High Findings (${findingsBySeverity.High.length})</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Resource</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Recommendation</th>
+            <th>ARN</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${findingsBySeverity.High.map((finding: any) => `
+            <tr>
+              <td><strong>${finding.resource_name || finding.resource_id || 'N/A'}</strong></td>
+              <td>${finding.type || finding.finding_type || finding.resource_type || 'N/A'}</td>
+              <td>${finding.description || finding.title || 'No description available'}</td>
+              <td>${finding.recommendation || finding.remediation || 'Review and remediate'}</td>
+              <td style="font-size: 10px; word-break: break-all;">${finding.resource_arn || finding.arn || 'N/A'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    ` : ''}
+    
+    ${findingsBySeverity.Medium.length > 0 ? `
+    <div class="severity-section" style="margin: 20px 0;">
+      <h3 style="color: #ffb000; margin-bottom: 10px;">Medium Findings (${findingsBySeverity.Medium.length})</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Resource</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Recommendation</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${findingsBySeverity.Medium.map((finding: any) => `
+            <tr>
+              <td><strong>${finding.resource_name || finding.resource_id || 'N/A'}</strong></td>
+              <td>${finding.type || finding.finding_type || finding.resource_type || 'N/A'}</td>
+              <td>${finding.description || finding.title || 'No description available'}</td>
+              <td>${finding.recommendation || finding.remediation || 'Review and remediate'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    ` : ''}
+    
+    ${findingsBySeverity.Low.length > 0 ? `
+    <div class="severity-section" style="margin: 20px 0;">
+      <h3 style="color: #00ff88; margin-bottom: 10px;">Low Findings (${findingsBySeverity.Low.length})</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Resource</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Recommendation</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${findingsBySeverity.Low.map((finding: any) => `
+            <tr>
+              <td><strong>${finding.resource_name || finding.resource_id || 'N/A'}</strong></td>
+              <td>${finding.type || finding.finding_type || finding.resource_type || 'N/A'}</td>
+              <td>${finding.description || finding.title || 'No description available'}</td>
+              <td>${finding.recommendation || finding.remediation || 'Review and remediate'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    ` : ''}
+  </div>
+  ` : `
   <div class="section">
     <h2>Detailed Findings</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Severity</th>
-          <th>Type</th>
-          <th>Resource</th>
-          <th>Description</th>
-          <th>Recommendation</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${data.findings.map((finding: any) => `
-          <tr>
-            <td class="${finding.severity?.toLowerCase() || 'low'}">${finding.severity || 'N/A'}</td>
-            <td>${finding.type || finding.finding_type || 'N/A'}</td>
-            <td>${finding.resource_name || finding.resource_arn || 'N/A'}</td>
-            <td>${finding.description || 'No description'}</td>
-            <td>${finding.recommendation || 'No recommendation'}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
+    <p style="color: #666; font-style: italic;">No detailed findings available. The scan may not have returned individual findings, or findings may be nested in the results data.</p>
+    <p style="color: #666; font-size: 12px; margin-top: 10px;">Check the "Scan Details" section below for raw scan data.</p>
   </div>
-  ` : ''}
+  `}
 
+  ${findings.length === 0 && data.results ? `
   <div class="section">
     <h2>Scan Details</h2>
-    <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto;">
+    <p style="color: #666; margin-bottom: 10px;">Raw scan results (findings may be nested in this data):</p>
+    <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 10px; max-height: 400px; overflow-y: auto;">
 ${JSON.stringify(data.results || {}, null, 2)}
     </pre>
   </div>
+  ` : ''}
 
   <div class="footer">
     <p>Generated by IAM Dashboard Security Scanner</p>
@@ -287,4 +435,5 @@ export function exportScanResultToCSV(data: ScanResultData, filename?: string): 
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
 

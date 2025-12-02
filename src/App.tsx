@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
@@ -14,15 +14,23 @@ import { GrafanaIntegration } from "./components/GrafanaIntegration";
 import { CloudSecurityAlerts } from "./components/CloudSecurityAlerts";
 import { Reports } from "./components/Reports";
 import { Settings } from "./components/Settings";
+import { ComplianceDashboard } from "./components/ComplianceDashboard";
 import { Toaster } from "./components/ui/sonner";
+import { ScanResultsProvider } from "./context/ScanResultsContext";
+import type { ReportRecord } from "./types/report";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [reportHistory, setReportHistory] = useState<ReportRecord[]>([]);
+
+  const handleFullScanComplete = useCallback((report: ReportRecord) => {
+    setReportHistory((prev) => [report, ...prev]);
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return <Dashboard onNavigate={setActiveTab} />;
+        return <Dashboard onNavigate={setActiveTab} onFullScanComplete={handleFullScanComplete} />;
       case "security-hub":
         return <SecurityHub />;
       case "guardduty":
@@ -40,50 +48,97 @@ export default function App() {
       case "s3-security":
         return <S3Security />;
       case "network-security":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">VPC & Network Security</h2><p className="text-muted-foreground">Network security scanning coming soon...</p></div></div>;
+        return (
+          <div className="p-6">
+            <div className="cyber-card p-8 text-center">
+              <h2 className="text-xl mb-4">VPC & Network Security</h2>
+              <p className="text-muted-foreground">
+                Network security scanning coming soon...
+              </p>
+            </div>
+          </div>
+        );
       case "database-security":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">RDS & Database Security</h2><p className="text-muted-foreground">Database security scanning coming soon...</p></div></div>;
+        return (
+          <div className="p-6">
+            <div className="cyber-card p-8 text-center">
+              <h2 className="text-xl mb-4">RDS & Database Security</h2>
+              <p className="text-muted-foreground">
+                Database security scanning coming soon...
+              </p>
+            </div>
+          </div>
+        );
       case "lambda-security":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">Lambda & Serverless Security</h2><p className="text-muted-foreground">Serverless security scanning coming soon...</p></div></div>;
+        return (
+          <div className="p-6">
+            <div className="cyber-card p-8 text-center">
+              <h2 className="text-xl mb-4">Lambda & Serverless Security</h2>
+              <p className="text-muted-foreground">
+                Serverless security scanning coming soon...
+              </p>
+            </div>
+          </div>
+        );
       case "cloudtrail":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">CloudTrail Monitoring</h2><p className="text-muted-foreground">CloudTrail analysis coming soon...</p></div></div>;
+        return (
+          <div className="p-6">
+            <div className="cyber-card p-8 text-center">
+              <h2 className="text-xl mb-4">CloudTrail Monitoring</h2>
+              <p className="text-muted-foreground">
+                CloudTrail analysis coming soon...
+              </p>
+            </div>
+          </div>
+        );
       case "compliance":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">Compliance Dashboard</h2><p className="text-muted-foreground">Comprehensive compliance tracking coming soon...</p></div></div>;
+        return <ComplianceDashboard />;
       case "cost-optimization":
-        return <div className="p-6"><div className="cyber-card p-8 text-center"><h2 className="text-xl mb-4">Cost & Optimization</h2><p className="text-muted-foreground">Cost optimization analysis coming soon...</p></div></div>;
+        return (
+          <div className="p-6">
+            <div className="cyber-card p-8 text-center">
+              <h2 className="text-xl mb-4">Cost & Optimization</h2>
+              <p className="text-muted-foreground">
+                Cost optimization analysis coming soon...
+              </p>
+            </div>
+          </div>
+        );
       case "alerts":
         return <CloudSecurityAlerts />;
       case "grafana":
         return <GrafanaIntegration />;
       case "reports":
-        return <Reports />;
+        return <Reports reports={reportHistory} />;
       case "settings":
         return <Settings />;
       default:
-        return <Dashboard onNavigate={setActiveTab} />;
+        return <Dashboard onNavigate={setActiveTab} onFullScanComplete={handleFullScanComplete} />;
     }
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background dark">
-      <Header onNavigate={setActiveTab} />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-        <main className="flex-1 overflow-auto">
-          {renderContent()}
-        </main>
+    <ScanResultsProvider>
+      <div className="h-screen flex flex-col bg-background dark">
+        <Header onNavigate={setActiveTab} />
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+          <main className="flex-1 overflow-auto">
+            {renderContent()}
+          </main>
+        </div>
+        <Toaster
+          position="top-right"
+          theme="dark"
+          toastOptions={{
+            style: {
+              background: 'rgba(15, 23, 42, 0.8)',
+              border: '1px solid rgba(0, 255, 136, 0.3)',
+              color: '#e2e8f0',
+            },
+          }}
+        />
       </div>
-      <Toaster 
-        position="top-right"
-        theme="dark"
-        toastOptions={{
-          style: {
-            background: 'rgba(15, 23, 42, 0.8)',
-            border: '1px solid rgba(0, 255, 136, 0.3)',
-            color: '#e2e8f0',
-          },
-        }}
-      />
-    </div>
+    </ScanResultsProvider>
   );
 }

@@ -32,6 +32,7 @@ import {
 import { toast } from "sonner@2.0.3";
 import { DemoModeBanner } from "./DemoModeBanner";
 import { scanIAM, type ScanResponse } from "../services/api";
+import { useScanResults } from "../context/ScanResultsContext";
 
 interface AWSIAMFinding {
   id: string;
@@ -183,6 +184,7 @@ export function AWSIAMScan() {
   const [selectedRegion, setSelectedRegion] = useState('us-east-1');
   const [awsProfile, setAwsProfile] = useState('default');
   const [loading, setLoading] = useState(false);
+  const { addScanResult } = useScanResults();
 
   // Toast notifications for scan events
   useEffect(() => {
@@ -202,8 +204,8 @@ export function AWSIAMScan() {
     setError(null);
     
     try {
-      toast.info('AWS IAM scan started', {
-        description: 'Analyzing IAM configuration and permissions...'
+      toast.info('IAM scan started', {
+        description: 'Running AWS IAM security scan...'
       });
 
       // Show loading state
@@ -256,10 +258,13 @@ export function AWSIAMScan() {
       setScanResult(transformedResult);
       setIsScanning(false);
 
+      // Store in context for Reports component
+      addScanResult(response);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setIsScanning(false);
-      toast.error('Failed to start AWS scan', {
+      toast.error('Failed to start IAM scan', {
         description: err instanceof Error ? err.message : 'Unknown error'
       });
     }
