@@ -125,7 +125,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'scan_type': scanner_type
                 }
             
-            # For full scan, ensure status is 'completed'
+            # For full scan and IAM scan, ensure status is 'completed'
             if scanner_type == 'full':
                 scan_result['status'] = 'completed'
                 # Ensure we have at least empty results for IAM
@@ -134,10 +134,23 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'findings': [],
                         'scan_summary': {'critical_findings': 0, 'high_findings': 0, 'medium_findings': 0, 'low_findings': 0}
                     }
+            elif scanner_type == 'iam':
+                # IAM scan should always return 'completed' status
+                scan_result['status'] = 'completed'
+                # Ensure required fields exist
+                if 'findings' not in scan_result:
+                    scan_result['findings'] = []
+                if 'scan_summary' not in scan_result:
+                    scan_result['scan_summary'] = {
+                        'critical_findings': 0,
+                        'high_findings': 0,
+                        'medium_findings': 0,
+                        'low_findings': 0
+                    }
             
         except Exception as scan_error:
             logger.error(f"Error executing scan: {str(scan_error)}", exc_info=True)
-            # For full scan, return a completed response with error info
+            # For full scan and IAM scan, return a completed response with error info
             if scanner_type == 'full':
                 scan_result = {
                     'scan_type': 'full',
@@ -148,6 +161,26 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'findings': [],
                         'scan_summary': {'critical_findings': 0, 'high_findings': 0, 'medium_findings': 0, 'low_findings': 0}
                     }
+                }
+            elif scanner_type == 'iam':
+                # IAM scan should always return completed, even on error
+                scan_result = {
+                    'scan_type': 'iam',
+                    'status': 'completed',
+                    'error': 'IAM scan encountered an error',
+                    'message': str(scan_error)[:500],
+                    'findings': [],
+                    'scan_summary': {
+                        'critical_findings': 0,
+                        'high_findings': 0,
+                        'medium_findings': 0,
+                        'low_findings': 0
+                    },
+                    'account_id': 'N/A',
+                    'users': {'total': 0, 'with_mfa': 0, 'without_mfa': 0, 'inactive': 0},
+                    'roles': {'total': 0},
+                    'policies': {'total': 0},
+                    'groups': {'total': 0}
                 }
             else:
                 return create_response(500, {

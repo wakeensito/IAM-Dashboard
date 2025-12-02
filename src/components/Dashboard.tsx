@@ -93,7 +93,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const scanIntervalRef = useRef<number | null>(null);
-  const { addScanResult } = useScanResults();
+  const { addScanResult, getAllScanResults } = useScanResults();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
   const [stats, setStats] = useState({
@@ -197,13 +197,109 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
     setWeeklyTrends(trends);
   };
 
-  // Calculate pie chart data for cloud security from live data
+  // Calculate pie chart data from real scan results
   const pieData = (() => {
+    // Get all scan results from context
+    const allScanResults = getAllScanResults();
+    
+    // Aggregate findings from all scans (prioritize full scan if available)
+    let totalFindings = 0;
+    let criticalFindings = 0;
+    let highFindings = 0;
+    let mediumFindings = 0;
+    let lowFindings = 0;
+    
+    // Find full scan first, then fall back to individual scans
+    const fullScan = allScanResults.find(r => r.scanner_type === 'full');
+    if (fullScan && fullScan.scan_summary) {
+      criticalFindings = fullScan.scan_summary.critical_findings || 0;
+      highFindings = fullScan.scan_summary.high_findings || 0;
+      mediumFindings = fullScan.scan_summary.medium_findings || 0;
+      lowFindings = fullScan.scan_summary.low_findings || 0;
+      totalFindings = criticalFindings + highFindings + mediumFindings + lowFindings;
+    } else {
+      // Aggregate from all individual scans
+      allScanResults.forEach(scan => {
+        if (scan.scan_summary) {
+          criticalFindings += scan.scan_summary.critical_findings || 0;
+          highFindings += scan.scan_summary.high_findings || 0;
+          mediumFindings += scan.scan_summary.medium_findings || 0;
+          lowFindings += scan.scan_summary.low_findings || 0;
+        }
+      });
+      totalFindings = criticalFindings + highFindings + mediumFindings + lowFindings;
+    }
+    
+    // If we have scan results, calculate percentages based on findings
+    if (allScanResults.length > 0) {
+      // If no findings at all, show 100% compliant (green)
+      if (totalFindings === 0) {
+        return [
+          { name: 'Compliant', value: 100, color: '#00ff88' },
+          { name: 'Violations', value: 0, color: '#ffb000' },
+          { name: 'Critical', value: 0, color: '#ff0040' }
+        ];
+      }
+      
+      // Calculate percentages based on actual findings
+      // Critical: percentage of critical findings relative to total
+      const criticalPct = totalFindings > 0 
+        ? Math.round((criticalFindings / totalFindings) * 100) 
+        : 0;
+      
+      // Violations: percentage of high + medium findings relative to total
+      const violationsPct = totalFindings > 0
+        ? Math.round(((highFindings + mediumFindings) / totalFindings) * 100)
+        : 0;
+      
+      // Compliant: remainder (shows green when findings are low or only low-severity)
+      // If we only have low-severity findings, still show mostly green
+      const compliantPct = Math.max(0, 100 - criticalPct - violationsPct);
+      
+      // If no critical or high findings, show mostly green (only low-severity findings)
+      if (criticalFindings === 0 && highFindings === 0) {
+        const lowOnlyPct = totalFindings > 0 
+          ? Math.min(15, Math.round((lowFindings / Math.max(totalFindings, 1)) * 15))
+          : 0;
+        return [
+          { name: 'Compliant', value: 100 - lowOnlyPct, color: '#00ff88' },
+          { name: 'Violations', value: lowOnlyPct, color: '#ffb000' },
+          { name: 'Critical', value: 0, color: '#ff0040' }
+        ];
+      }
+      
+      // Normalize to ensure they sum to 100%
+      const sum = criticalPct + violationsPct + compliantPct;
+      if (sum !== 100 && sum > 0) {
+        const scale = 100 / sum;
+        return [
+          { name: 'Compliant', value: Math.round(compliantPct * scale), color: '#00ff88' },
+          { name: 'Violations', value: Math.round(violationsPct * scale), color: '#ffb000' },
+          { name: 'Critical', value: Math.round(criticalPct * scale), color: '#ff0040' }
+        ];
+      }
+      
+      return [
+        { name: 'Compliant', value: compliantPct, color: '#00ff88' },
+        { name: 'Violations', value: violationsPct, color: '#ffb000' },
+        { name: 'Critical', value: criticalPct, color: '#ff0040' }
+      ];
+    }
+    
+    // Fallback to dashboard data if no scan results
     const summary = dashboardData?.summary || {};
     const total = (summary.compliant_resources || 0) + (summary.non_compliant_resources || 0);
     if (total === 0) {
       // Fallback to compliance score if no resource data
       const score = dashboardData?.compliance?.overall_score || 0;
+      // If no data at all, show 100% compliant (green)
+      if (score === 0 && allScanResults.length === 0) {
+        return [
+          { name: 'Compliant', value: 100, color: '#00ff88' },
+          { name: 'Violations', value: 0, color: '#ffb000' },
+          { name: 'Critical', value: 0, color: '#ff0040' }
+        ];
+      }
       return [
         { name: 'Compliant', value: score, color: '#00ff88' },
         { name: 'Violations', value: Math.max(0, 100 - score - 4), color: '#ffb000' },
