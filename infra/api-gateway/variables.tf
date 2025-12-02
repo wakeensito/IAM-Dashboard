@@ -64,3 +64,15 @@ variable "lambda_function_arn" {
   default     = ""
 }
 
+variable "lambda_function_invoke_arn" {
+  description = "Invoke ARN of the Lambda function to integrate"
+  type        = string
+  default     = ""
+}
+
+variable "lambda_function_name" {
+  description = "Name of the Lambda function to integrate"
+  type        = string
+  default     = ""
+}
+
