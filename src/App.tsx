@@ -62,7 +62,7 @@ export default function App() {
       case "grafana":
         return <GrafanaIntegration />;
       case "reports":
-        return <Reports reports={reportHistory} />;
+        return <Reports reports={reportHistory} onReportGenerated={handleFullScanComplete} />;
       case "settings":
         return <Settings />;
       default:

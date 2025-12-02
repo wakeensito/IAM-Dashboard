@@ -8,6 +8,8 @@ import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { FileText, Download, Calendar, Filter, Search, Eye, Plus } from "lucide-react";
+import { toast } from "sonner@2.0.3";
+import jsPDF from "jspdf";
 import type { ReportRecord } from "../types/report";
 
 const REPORT_TYPE_TABS = [
@@ -71,13 +73,15 @@ const DEFAULT_REPORT_TYPE = REPORT_TYPE_TABS[0].value;
 
 interface ReportsProps {
   reports: ReportRecord[];
+  onReportGenerated?: (report: ReportRecord) => void;
 }
 
-export function Reports({ reports }: ReportsProps) {
+export function Reports({ reports, onReportGenerated }: ReportsProps) {
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [reportType, setReportType] = useState<string>(DEFAULT_REPORT_TYPE);
   const [reportDescription, setReportDescription] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingTemplate, setGeneratingTemplate] = useState<string | null>(null);
 
   const selectedReport = REPORT_TYPE_TABS.find((tab) => tab.value === reportType) ?? REPORT_TYPE_TABS[0];
 
@@ -90,6 +94,207 @@ export function Reports({ reports }: ReportsProps) {
       setReportDescription("");
       setReportType(DEFAULT_REPORT_TYPE);
     }, 3000);
+  };
+
+  const generateQuickReport = (templateType: "security-summary" | "threat-intelligence" | "executive-summary") => {
+    setGeneratingTemplate(templateType);
+    
+    const templateConfig = {
+      "security-summary": {
+        name: "Security Summary",
+        description: "Generating comprehensive security summary report...",
+        successMessage: "Security Summary report generated successfully!",
+        reportTypes: ["security-hub", "guardduty", "config", "inspector", "macie", "iam-security", "ec2-security", "s3-security"],
+        threats: 8,
+        processes: 1245,
+        size: "3.2 MB",
+      },
+      "threat-intelligence": {
+        name: "Threat Intelligence",
+        description: "Generating threat intelligence analysis report...",
+        successMessage: "Threat Intelligence report generated successfully!",
+        reportTypes: ["guardduty", "security-hub", "alerts"],
+        threats: 15,
+        processes: 892,
+        size: "2.8 MB",
+      },
+      "executive-summary": {
+        name: "Executive Summary",
+        description: "Generating executive summary report...",
+        successMessage: "Executive Summary report generated successfully!",
+        reportTypes: ["security-hub", "config", "alerts"],
+        threats: 5,
+        processes: 456,
+        size: "1.5 MB",
+      },
+    };
+
+    const config = templateConfig[templateType];
+    
+    toast.info(config.description, {
+      duration: 2000,
+    });
+
+    // Simulate report generation
+    setTimeout(() => {
+      const now = new Date();
+      const datePart = now.toLocaleDateString("en-CA");
+      const timePart = now.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const timeZoneToken = now
+        .toLocaleTimeString("en-US", { timeZoneName: "short" })
+        .split(" ")
+        .pop() ?? "UTC";
+
+      const newReport: ReportRecord = {
+        id: now.getTime().toString(),
+        name: `${config.name} - ${datePart} ${timePart} ${timeZoneToken}`,
+        type: "Automated",
+        date: datePart,
+        status: "Completed",
+        threats: config.threats,
+        processes: config.processes,
+        size: config.size,
+      };
+
+      // Add report to history
+      if (onReportGenerated) {
+        onReportGenerated(newReport);
+      }
+
+      setGeneratingTemplate(null);
+      toast.success(config.successMessage, {
+        description: "Report added to history. Click download to get the file.",
+        duration: 4000,
+      });
+    }, 3000);
+  };
+
+  const handleDownloadReport = (report: ReportRecord) => {
+    // Create PDF document
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 20;
+
+    // Helper function to add a new page if needed
+    const checkPageBreak = (requiredSpace: number) => {
+      if (yPosition + requiredSpace > pageHeight - 20) {
+        doc.addPage();
+        yPosition = 20;
+        return true;
+      }
+      return false;
+    };
+
+    // Header
+    doc.setFillColor(0, 255, 136); // Cyber green
+    doc.rect(0, 0, pageWidth, 30, "F");
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.text("Security Report", pageWidth / 2, 18, { align: "center" });
+
+    yPosition = 40;
+
+    // Report Information Section
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("Report Information", 20, yPosition);
+    yPosition += 10;
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Report Name: ${report.name}`, 20, yPosition);
+    yPosition += 7;
+    doc.text(`Report Type: ${report.type}`, 20, yPosition);
+    yPosition += 7;
+    doc.text(`Date: ${report.date}`, 20, yPosition);
+    yPosition += 7;
+    doc.text(`Status: ${report.status}`, 20, yPosition);
+    yPosition += 7;
+    doc.text(`File Size: ${report.size}`, 20, yPosition);
+    yPosition += 15;
+
+    // Security Findings Section
+    checkPageBreak(30);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("Security Findings", 20, yPosition);
+    yPosition += 10;
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    
+    // Threats
+    doc.setFillColor(255, 0, 64); // Red for threats
+    doc.rect(20, yPosition - 5, 5, 5, "F");
+    doc.text(`Threats Detected: ${report.threats}`, 30, yPosition);
+    yPosition += 10;
+
+    // Processes
+    doc.setFillColor(0, 255, 136); // Green for processes
+    doc.rect(20, yPosition - 5, 5, 5, "F");
+    doc.text(`Processes Analyzed: ${report.processes}`, 30, yPosition);
+    yPosition += 15;
+
+    // Detailed Summary Section
+    checkPageBreak(40);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("Executive Summary", 20, yPosition);
+    yPosition += 10;
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const summaryText = [
+      "This security report provides a comprehensive analysis of the security posture",
+      "based on automated scanning and monitoring activities.",
+      "",
+      `The analysis identified ${report.threats} security threats across ${report.processes} processes.`,
+      "All findings have been categorized and prioritized for remediation.",
+      "",
+      "Recommendations:",
+      "• Review and address all critical and high-severity findings immediately",
+      "• Implement recommended security controls and best practices",
+      "• Schedule regular security scans to maintain compliance",
+      "• Monitor security alerts and respond promptly to incidents",
+    ];
+
+    summaryText.forEach((line) => {
+      checkPageBreak(7);
+      doc.text(line, 20, yPosition);
+      yPosition += 6;
+    });
+
+    yPosition += 10;
+
+    // Footer
+    checkPageBreak(15);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, yPosition, pageWidth - 20, yPosition);
+    yPosition += 8;
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    doc.text(
+      `Generated on ${new Date().toLocaleString()} | Report ID: ${report.id}`,
+      pageWidth / 2,
+      yPosition,
+      { align: "center" }
+    );
+
+    // Save the PDF
+    const fileName = `${report.name.replace(/[^a-z0-9]/gi, "_")}.pdf`;
+    doc.save(fileName);
+
+    toast.success("Report downloaded", {
+      description: `${report.name} has been downloaded as PDF`,
+      duration: 3000,
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -272,6 +477,8 @@ export function Reports({ reports }: ReportsProps) {
                           size="icon" 
                           className="h-8 w-8 hover:bg-accent/20"
                           disabled={report.status === "In Progress"}
+                          onClick={() => handleDownloadReport(report)}
+                          title="Download report"
                         >
                           <Download className="h-4 w-4" />
                         </Button>
@@ -297,8 +504,14 @@ export function Reports({ reports }: ReportsProps) {
               <p className="text-sm text-muted-foreground mb-3">
                 Complete overview of all security findings
               </p>
-              <Button variant="outline" size="sm" className="border-border w-full">
-                Generate
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-border w-full"
+                onClick={() => generateQuickReport("security-summary")}
+                disabled={generatingTemplate !== null}
+              >
+                {generatingTemplate === "security-summary" ? "Generating..." : "Generate"}
               </Button>
             </div>
             
@@ -307,8 +520,14 @@ export function Reports({ reports }: ReportsProps) {
               <p className="text-sm text-muted-foreground mb-3">
                 Detailed analysis of detected threats
               </p>
-              <Button variant="outline" size="sm" className="border-border w-full">
-                Generate
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-border w-full"
+                onClick={() => generateQuickReport("threat-intelligence")}
+                disabled={generatingTemplate !== null}
+              >
+                {generatingTemplate === "threat-intelligence" ? "Generating..." : "Generate"}
               </Button>
             </div>
             
@@ -317,8 +536,14 @@ export function Reports({ reports }: ReportsProps) {
               <p className="text-sm text-muted-foreground mb-3">
                 High-level summary for management
               </p>
-              <Button variant="outline" size="sm" className="border-border w-full">
-                Generate
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-border w-full"
+                onClick={() => generateQuickReport("executive-summary")}
+                disabled={generatingTemplate !== null}
+              >
+                {generatingTemplate === "executive-summary" ? "Generating..." : "Generate"}
               </Button>
             </div>
           </div>

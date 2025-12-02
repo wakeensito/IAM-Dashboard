@@ -7,9 +7,8 @@ terraform {
   }
 }
 
-provider "aws" {
-  region = var.aws_region
-}
+# Provider block removed - module inherits provider from parent
+# This ensures role assumption from main.tf is used
 
 # API Gateway REST API
 resource "aws_apigatewayv2_api" "api" {
@@ -52,25 +51,24 @@ resource "aws_apigatewayv2_stage" "default" {
   }
 }
 
-# Data source to get Lambda function
-data "aws_lambda_function" "scanner" {
-  function_name = "iam-dashboard-scanner"
-}
-
-# Lambda integration
+# Lambda integration - use variables passed from Lambda module
+# This avoids needing data source permissions
 resource "aws_apigatewayv2_integration" "lambda" {
-  api_id           = aws_apigatewayv2_api.api.id
-  integration_type = "AWS_PROXY"
-  integration_uri  = data.aws_lambda_function.scanner.invoke_arn
-  integration_method = "POST"
+  api_id                 = aws_apigatewayv2_api.api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = var.lambda_function_invoke_arn != "" ? var.lambda_function_invoke_arn : "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.lambda_function_name}"
+  integration_method     = "POST"
   payload_format_version = "2.0"
 }
+
+# Get current AWS account ID (no permissions needed)
+data "aws_caller_identity" "current" {}
 
 # Permission for API Gateway to invoke Lambda
 resource "aws_lambda_permission" "api_gateway" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
-  function_name = data.aws_lambda_function.scanner.function_name
+  function_name = var.lambda_function_name != "" ? var.lambda_function_name : "iam-dashboard-scanner"
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
 }

@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "environment" {
   description = "Environment name (dev, staging, prod)"
   type        = string
-  default     = "prod"
+  default     = "dev"
 }
 
 variable "project_name" {
@@ -50,5 +50,23 @@ variable "lambda_function_name" {
   description = "Lambda function name"
   type        = string
   default     = "iam-dashboard-scanner"
+}
+
+variable "sns_topic_arn" {
+  description = "SNS topic ARN for CloudWatch alarm notifications (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "log_retention_days" {
+  description = "Number of days to retain CloudWatch logs"
+  type        = number
+  default     = 30
+}
+
+variable "assume_role_arn" {
+  description = "IAM role ARN to assume for resource access (e.g., IAMDash-Developer-Dev)"
+  type        = string
+  default     = ""
 }
 

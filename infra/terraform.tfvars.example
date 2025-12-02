@@ -1,0 +1,36 @@
+# Terraform Variables for IAMDash Developer Environment
+# Copy this file to terraform.tfvars and customize as needed
+
+# AWS Configuration
+aws_region = "us-east-1"
+
+# Environment Configuration
+environment = "dev"
+project_name = "IAMDash"
+
+# IAM Role Configuration
+# Use IAMDash-Developer-Dev role for resource access
+# Format: arn:aws:iam::ACCOUNT_ID:role/IAMDash-Developer-Dev
+assume_role_arn = "arn:aws:iam::YOUR_ACCOUNT_ID:role/IAMDash-Developer-Dev"
+
+# Resource Names
+lambda_function_name = "iam-dashboard-scanner"
+dynamodb_table_name  = "iam-dashboard-scan-results"
+s3_bucket_name       = "iam-dashboard-project"
+
+# Optional Configuration
+sns_topic_arn      = ""  # Optional: SNS topic for alarm notifications
+log_retention_days = 30  # CloudWatch log retention in days
+
+# GitHub Actions Configuration (if using CI/CD)
+github_repo_owner = "wakeensito"
+github_repo_name  = "IAM-Dashboard"
+
+
+
+
+
+
+
+
+
