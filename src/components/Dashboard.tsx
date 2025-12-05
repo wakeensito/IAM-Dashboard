@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
@@ -93,21 +93,28 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const scanIntervalRef = useRef<number | null>(null);
-  const { addScanResult, getAllScanResults } = useScanResults();
+  const { addScanResult, getAllScanResults, scanResults: scanResultsMap } = useScanResults();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
   const [stats, setStats] = useState({
     last_scan: "Never",
     total_resources: 0,
     security_findings: 0,
-    compliance_score: 0,
+    compliance_score: 100, // Start at 100% (perfect compliance)
     critical_alerts: 0,
+    high_findings: 0,
+    medium_findings: 0,
     cost_savings: 0
   });
   const [weeklyTrends, setWeeklyTrends] = useState<Array<{name: string; compliant: number; violations: number; critical: number}>>([]);
 
-  // Get scan results - this will trigger re-render when context updates
-  const scanResults = getAllScanResults();
+  // Get scan results - memoize based on Map size to ensure React detects changes
+  const scanResultsSize = scanResultsMap.size;
+  const scanResults = useMemo(() => {
+    const results = getAllScanResults();
+    console.log('[Dashboard] Memoized scanResults, size:', scanResultsSize, 'results:', results.length);
+    return results;
+  }, [scanResultsSize]); // Re-compute when Map size changes
 
   // Fetch dashboard data on mount and refresh (but don't overwrite scan results)
   useEffect(() => {
@@ -119,6 +126,9 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
 
   // Update stats and alerts when scan results change
   useEffect(() => {
+    console.log('[Dashboard] useEffect triggered, scanResults.length:', scanResults.length, 'scanResultsSize:', scanResultsSize);
+    console.log('[Dashboard] scanResults:', scanResults.map(r => ({ type: r.scanner_type, summary: r.scan_summary, findingsCount: r.findings?.length || 0 })));
+    
     if (scanResults.length > 0) {
       // Aggregate findings from all scans
       let totalFindings = 0;
@@ -168,6 +178,8 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
         ...prev,
         security_findings: totalFindings,
         critical_alerts: criticalFindings,
+        high_findings: highFindings,
+        medium_findings: mediumFindings,
         total_resources: totalResources || prev.total_resources,
         compliance_score: complianceScore,
         last_scan: mostRecentScan?.timestamp ? formatTimestamp(mostRecentScan.timestamp) : "Recently"
@@ -192,8 +204,31 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
         }));
       
       setSecurityAlerts(alerts);
+      
+      console.log('[Dashboard] Updated stats:', {
+        security_findings: totalFindings,
+        critical_alerts: criticalFindings,
+        total_resources: totalResources,
+        compliance_score: complianceScore,
+        last_scan: mostRecentScan?.timestamp ? formatTimestamp(mostRecentScan.timestamp) : "Recently",
+        alertsCount: alerts.length
+      });
+    } else {
+      // Reset to neutral state when no scan results
+      console.log('[Dashboard] No scan results, resetting to neutral state');
+      setStats({
+        last_scan: "Never",
+        total_resources: 0,
+        security_findings: 0,
+        compliance_score: 100,
+        critical_alerts: 0,
+        high_findings: 0,
+        medium_findings: 0,
+        cost_savings: 0
+      });
+      setSecurityAlerts([]);
     }
-  }, [scanResults]);
+  }, [scanResults, scanResultsSize]); // Include scanResultsSize to detect Map changes
 
   const fetchDashboardData = async () => {
     try {
@@ -209,45 +244,12 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       if (dashboard) {
         setDashboardData(dashboard);
         
-        // Only update stats from dashboard data if we don't have scan results
-        // Scan results take priority and will be set by the useEffect hook
-        if (scanResults.length === 0) {
-          summary = dashboard.summary || {};
-          compliance = dashboard.compliance || {};
-          
-          setStats({
-            last_scan: dashboard.summary ? "Recently" : "Never",
-            total_resources: (summary.compliant_resources || 0) + (summary.non_compliant_resources || 0),
-            security_findings: summary.total_findings || 0,
-            compliance_score: compliance.overall_score || 0,
-            critical_alerts: summary.critical_findings || 0,
-            cost_savings: 0
-          });
-
-          // Transform alerts only if we don't have scan results
-          if (dashboard.alerts && dashboard.alerts.length > 0) {
-            const transformedAlerts: SecurityAlert[] = dashboard.alerts.map((alert, index) => ({
-              id: alert.id || index,
-              service: alert.service || 'Unknown',
-              resource: alert.resource_id || 'Unknown',
-              severity: (alert.severity as 'Critical' | 'High' | 'Medium' | 'Low') || 'Medium',
-              message: alert.description || alert.title || 'Security alert',
-              timestamp: formatTimestamp(alert.timestamp)
-            }));
-            setSecurityAlerts(transformedAlerts);
-          }
-        }
+        // Don't update stats from dashboard API - keep neutral state (zeros, 100% compliant)
+        // This creates a better UX where users see results populate when they scan
+        // Stats will be updated by the scanResults useEffect hook when scans run
       }
 
-      if (securityHub && securityHub.summary) {
-        // Update stats with Security Hub data if dashboard data is incomplete
-        const hubSummary = securityHub.summary;
-        setStats(prev => ({
-          ...prev,
-          security_findings: prev.security_findings || hubSummary.total_findings || 0,
-          critical_alerts: prev.critical_alerts || hubSummary.critical_findings || 0
-        }));
-      }
+      // Don't update stats from Security Hub - keep neutral state until scan runs
 
       // Generate weekly trends from available data (placeholder for now - would need historical data)
       // This would ideally come from a time-series endpoint
@@ -369,7 +371,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       const sum = criticalPct + violationsPct + compliantPct;
       if (sum !== 100 && sum > 0) {
         const scale = 100 / sum;
-        return [
+    return [
           { name: 'Compliant', value: Math.round(compliantPct * scale), color: '#00ff88' },
           { name: 'Violations', value: Math.round(violationsPct * scale), color: '#ffb000' },
           { name: 'Critical', value: Math.round(criticalPct * scale), color: '#ff0040' }
@@ -377,46 +379,21 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       }
       
       const result = [
-        { name: 'Compliant', value: compliantPct, color: '#00ff88' },
-        { name: 'Violations', value: violationsPct, color: '#ffb000' },
-        { name: 'Critical', value: criticalPct, color: '#ff0040' }
+      { name: 'Compliant', value: compliantPct, color: '#00ff88' },
+      { name: 'Violations', value: violationsPct, color: '#ffb000' },
+      { name: 'Critical', value: criticalPct, color: '#ff0040' }
       ];
       console.log('[Dashboard] Calculated pie data:', result);
       return result;
     }
     
-    // Fallback to dashboard data if no scan results
-    console.log('[Dashboard] No scan results, using fallback data');
-    const summary = dashboardData?.summary || {};
-    const total = (summary.compliant_resources || 0) + (summary.non_compliant_resources || 0);
-    if (total === 0) {
-      // Fallback to compliance score if no resource data
-      const score = dashboardData?.compliance?.overall_score || 0;
-      // If no data at all, show 100% compliant (green)
-      if (score === 0 && allScanResults.length === 0) {
-        return [
-          { name: 'Compliant', value: 100, color: '#00ff88' },
-          { name: 'Violations', value: 0, color: '#ffb000' },
-          { name: 'Critical', value: 0, color: '#ff0040' }
-        ];
-      }
-      return [
-        { name: 'Compliant', value: score, color: '#00ff88' },
-        { name: 'Violations', value: Math.max(0, 100 - score - 4), color: '#ffb000' },
-        { name: 'Critical', value: Math.min(4, 100 - score), color: '#ff0040' }
-      ];
-    }
-    const compliant = summary.compliant_resources || 0;
-    const nonCompliant = summary.non_compliant_resources || 0;
-    const critical = summary.critical_findings || 0;
-    const compliantPct = Math.round((compliant / total) * 100);
-    const violationsPct = Math.round((nonCompliant / total) * 100);
-    const criticalPct = Math.min(100 - compliantPct - violationsPct, Math.round((critical / total) * 100));
-    
+    // Fallback: Show 100% compliant (neutral state) when no scan results
+    // This creates a better UX - users see results populate when they scan
+    console.log('[Dashboard] No scan results, showing neutral state (100% compliant)');
     return [
-      { name: 'Compliant', value: compliantPct, color: '#00ff88' },
-      { name: 'Violations', value: violationsPct, color: '#ffb000' },
-      { name: 'Critical', value: criticalPct, color: '#ff0040' }
+      { name: 'Compliant', value: 100, color: '#00ff88' },
+      { name: 'Violations', value: 0, color: '#ffb000' },
+      { name: 'Critical', value: 0, color: '#ff0040' }
     ];
   })();
 
@@ -529,9 +506,9 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
         });
       } else {
         // Success - show success message
-        toast.success('Full security scan completed', {
-          description: `Found ${report.threats} security findings`
-        });
+      toast.success('Full security scan completed', {
+        description: `Found ${report.threats} security findings`
+      });
       }
       
       setTimeout(() => {
@@ -625,7 +602,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
                   <Skeleton className="h-8 w-16 bg-muted/20" />
                 ) : (
                   <p className="text-2xl font-medium text-foreground">
-                    {stats?.total_resources || 1247}
+                    {stats?.total_resources || 0}
                   </p>
                 )}
               </div>
@@ -646,7 +623,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
                   <Skeleton className="h-8 w-12 bg-muted/20" />
                 ) : (
                   <p className="text-2xl font-medium text-[#ffb000]">
-                    {stats?.security_findings || 23}
+                    {stats?.security_findings || 0}
                   </p>
                 )}
               </div>
@@ -667,7 +644,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
                   <Skeleton className="h-8 w-20 bg-muted/20" />
                 ) : (
                   <p className="text-2xl font-medium text-foreground">
-                    {stats?.compliance_score || 78}%
+                    {stats?.compliance_score ?? 100}%
                   </p>
                 )}
               </div>
@@ -688,28 +665,30 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
               <Cloud className="h-8 w-8 text-primary" />
               <div>
                 <h3 className="text-lg font-medium">AWS IAM Security Status</h3>
-                <p className="text-sm text-muted-foreground">Last scan: 5 min ago</p>
+                <p className="text-sm text-muted-foreground">
+                  Last scan: {stats?.last_scan || 'Never'}
+                </p>
               </div>
             </div>
-            <Badge className="bg-[#ffb000] text-black">
-              78% Compliant
+            <Badge className={`${stats?.compliance_score === 100 ? 'bg-[#00ff88]' : stats?.compliance_score >= 70 ? 'bg-[#ffb000]' : 'bg-[#ff0040]'} text-black`}>
+              {stats?.compliance_score ?? 100}% Compliant
             </Badge>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="cyber-glass p-3 rounded-lg text-center">
-              <p className="text-lg font-medium text-[#ff0040]">1</p>
+              <p className="text-lg font-medium text-[#ff0040]">{stats?.critical_alerts || 0}</p>
               <p className="text-xs text-muted-foreground">Critical</p>
             </div>
             <div className="cyber-glass p-3 rounded-lg text-center">
-              <p className="text-lg font-medium text-[#ff6b35]">2</p>
+              <p className="text-lg font-medium text-[#ff6b35]">{stats?.high_findings || 0}</p>
               <p className="text-xs text-muted-foreground">High</p>
             </div>
             <div className="cyber-glass p-3 rounded-lg text-center">
-              <p className="text-lg font-medium text-[#ffb000]">2</p>
+              <p className="text-lg font-medium text-[#ffb000]">{stats?.medium_findings || 0}</p>
               <p className="text-xs text-muted-foreground">Medium</p>
             </div>
             <div className="cyber-glass p-3 rounded-lg text-center">
-              <p className="text-lg font-medium text-[#00ff88]">39</p>
+              <p className="text-lg font-medium text-[#00ff88]">{stats?.total_resources || 0}</p>
               <p className="text-xs text-muted-foreground">Resources</p>
             </div>
           </div>
