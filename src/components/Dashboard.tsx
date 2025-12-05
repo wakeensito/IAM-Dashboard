@@ -161,9 +161,6 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
 
   // Update stats and alerts when scan results change - USE ONLY THE MOST RECENT SCAN
   useEffect(() => {
-      hasFindings: !!(r.findings && r.findings.length > 0)
-    })));
-    
     if (scanResults.length > 0) {
       // Find the most recent scan by timestamp (full scan takes priority if same timestamp, then IAM)
       const sortedScans = [...scanResults].sort((a, b) => {
@@ -258,14 +255,6 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
     const highCount = stats?.high_findings || 0;
     const mediumCount = stats?.medium_findings || 0;
     const totalFindings = stats?.security_findings || 0;
-    
-    // Calculate pie chart data from stats 
-      complianceScore, 
-      criticalCount, 
-      highCount, 
-      mediumCount, 
-      totalFindings 
-    });
     
     // If no scan has been run (neutral state), show 100% compliant
     if (stats?.last_scan === "Never" || totalFindings === 0) {
