@@ -6,8 +6,8 @@ export function DemoModeBanner() {
     <Alert className="border-primary bg-primary/10 mb-6">
       <Info className="h-4 w-4 text-primary" />
       <AlertDescription className="text-primary">
-        <strong>Demo Mode Active:</strong> This is a fully functional demonstration of the Memory Forensics Toolkit interface. 
-        All features work with simulated data to showcase the application's capabilities.
+        <strong>Demo Mode Active:</strong> This is a fully functional demonstration of the AWS interface. 
+        All features work with real AWS security scan data to showcase the application's capabilities for cloud security monitoring and compliance tracking.
       </AlertDescription>
     </Alert>
   );
