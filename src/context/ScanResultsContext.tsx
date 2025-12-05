@@ -29,6 +29,7 @@ export interface StoredScanResult {
 
 interface ScanResultsContextType {
   scanResults: Map<string, StoredScanResult>;
+  scanResultsVersion: number; // Version counter that increments on every update
   addScanResult: (result: ScanResponse) => void;
   getScanResult: (scannerType: string) => StoredScanResult | null;
   getAllScanResults: () => StoredScanResult[];
@@ -39,33 +40,38 @@ const ScanResultsContext = createContext<ScanResultsContextType | undefined>(und
 
 export function ScanResultsProvider({ children }: { children: ReactNode }) {
   const [scanResults, setScanResults] = useState<Map<string, StoredScanResult>>(new Map());
+  const [scanResultsVersion, setScanResultsVersion] = useState(0); // Version counter
 
   const addScanResult = (result: ScanResponse) => {
+    // Extract scan summary - try multiple locations
+    let scanSummary = result.results?.scan_summary;
+    if (!scanSummary) {
+      scanSummary = extractScanSummary(result.results);
+    }
+    
+    // Extract findings - try multiple locations
+    let findings = extractFindings(result.results);
+    
+    const storedResult: StoredScanResult = {
+      scan_id: result.scan_id,
+      scanner_type: result.scanner_type,
+      region: result.region,
+      status: result.status,
+      timestamp: result.timestamp,
+      results: result.results,
+      scan_summary: scanSummary,
+      findings: findings
+    };
+    
     setScanResults(prev => {
       const newMap = new Map(prev);
-      
-      // Extract scan summary - try multiple locations
-      let scanSummary = result.results?.scan_summary;
-      if (!scanSummary) {
-        scanSummary = extractScanSummary(result.results);
-      }
-      
-      // Extract findings - try multiple locations
-      let findings = extractFindings(result.results);
-      
-      const storedResult: StoredScanResult = {
-        scan_id: result.scan_id,
-        scanner_type: result.scanner_type,
-        region: result.region,
-        status: result.status,
-        timestamp: result.timestamp,
-        results: result.results,
-        scan_summary: scanSummary,
-        findings: findings
-      };
       newMap.set(result.scanner_type, storedResult);
       return newMap;
     });
+    
+    // Increment version to trigger re-renders in components using this context
+    // This ensures Dashboard updates even when replacing an existing scan result
+    setScanResultsVersion(v => v + 1);
   };
 
   const getScanResult = (scannerType: string): StoredScanResult | null => {
@@ -84,6 +90,7 @@ export function ScanResultsProvider({ children }: { children: ReactNode }) {
     <ScanResultsContext.Provider
       value={{
         scanResults,
+        scanResultsVersion,
         addScanResult,
         getScanResult,
         getAllScanResults,
@@ -108,6 +115,20 @@ export function useScanResults() {
  */
 function extractScanSummary(results: any): StoredScanResult['scan_summary'] {
   if (!results) return undefined;
+
+  // For full scan, extract summary from IAM only
+  if (results.scan_type === 'full' || results.iam) {
+    return {
+      critical_findings: results.iam?.scan_summary?.critical_findings || 0,
+      high_findings: results.iam?.scan_summary?.high_findings || 0,
+      medium_findings: results.iam?.scan_summary?.medium_findings || 0,
+      low_findings: results.iam?.scan_summary?.low_findings || 0,
+      users: results.iam?.users?.total || 0,
+      roles: results.iam?.roles?.total || 0,
+      policies: results.iam?.policies?.total || 0,
+      groups: results.iam?.groups?.total || 0
+    };
+  }
 
   // Try to find summary in different possible locations
   if (results.scan_summary) {
@@ -159,6 +180,18 @@ function extractScanSummary(results: any): StoredScanResult['scan_summary'] {
  */
 function extractFindings(results: any): any[] {
   if (!results) return [];
+  
+  // For full scan, extract findings from IAM only
+  if (results.scan_type === 'full' || results.iam) {
+    const allFindings: any[] = [];
+    
+    // Extract findings from IAM only
+    if (results.iam?.findings) allFindings.push(...results.iam.findings);
+    
+    if (allFindings.length > 0) {
+      return allFindings;
+    }
+  }
   
   // Direct findings array
   if (Array.isArray(results.findings) && results.findings.length > 0) {

@@ -93,7 +93,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const scanIntervalRef = useRef<number | null>(null);
-  const { addScanResult, getAllScanResults, scanResults: scanResultsMap } = useScanResults();
+  const { addScanResult, getAllScanResults, scanResults: scanResultsMap, scanResultsVersion } = useScanResults();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
   const [stats, setStats] = useState({
@@ -108,13 +108,20 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
   });
   const [weeklyTrends, setWeeklyTrends] = useState<Array<{name: string; compliant: number; violations: number; critical: number}>>([]);
 
-  // Get scan results - memoize based on Map size to ensure React detects changes
-  const scanResultsSize = scanResultsMap.size;
+  // Get scan results - convert Map to array, re-compute when version changes
   const scanResults = useMemo(() => {
-    const results = getAllScanResults();
-    console.log('[Dashboard] Memoized scanResults, size:', scanResultsSize, 'results:', results.length);
+    const results = Array.from(scanResultsMap.values());
+    console.log('[Dashboard] Memoized scanResults, version:', scanResultsVersion, 'Map size:', scanResultsMap.size, 'results array length:', results.length);
+    console.log('[Dashboard] Memoized scanResults details:', results.map(r => ({
+      type: r.scanner_type,
+      timestamp: r.timestamp,
+      hasSummary: !!r.scan_summary,
+      summary: r.scan_summary,
+      summaryKeys: r.scan_summary ? Object.keys(r.scan_summary) : [],
+      findingsCount: r.findings?.length || 0
+    })));
     return results;
-  }, [scanResultsSize]); // Re-compute when Map size changes
+  }, [scanResultsVersion, scanResultsMap]); // Re-compute when version changes
 
   // Fetch dashboard data on mount and refresh (but don't overwrite scan results)
   useEffect(() => {
@@ -126,8 +133,16 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
 
   // Update stats and alerts when scan results change - USE ONLY THE MOST RECENT SCAN
   useEffect(() => {
-    console.log('[Dashboard] useEffect triggered, scanResults.length:', scanResults.length, 'scanResultsSize:', scanResultsSize);
-    console.log('[Dashboard] scanResults:', scanResults.map(r => ({ type: r.scanner_type, summary: r.scan_summary, findingsCount: r.findings?.length || 0, timestamp: r.timestamp })));
+    console.log('[Dashboard] useEffect triggered, scanResults.length:', scanResults.length, 'version:', scanResultsVersion);
+    console.log('[Dashboard] scanResults full details:', scanResults.map(r => ({ 
+      type: r.scanner_type, 
+      timestamp: r.timestamp,
+      hasSummary: !!r.scan_summary,
+      summary: r.scan_summary,
+      summaryKeys: r.scan_summary ? Object.keys(r.scan_summary) : [],
+      findingsCount: r.findings?.length || 0,
+      hasFindings: !!(r.findings && r.findings.length > 0)
+    })));
     
     if (scanResults.length > 0) {
       // Find the most recent scan by timestamp (full scan takes priority if same timestamp, then IAM)
@@ -227,7 +242,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       });
       setSecurityAlerts([]);
     }
-  }, [scanResults, scanResultsSize]); // Include scanResultsSize to detect Map changes
+  }, [scanResults, scanResultsVersion]); // Re-run when scan results version changes
 
   const fetchDashboardData = async () => {
     try {
