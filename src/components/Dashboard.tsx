@@ -109,15 +109,15 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
   // Get scan results - this will trigger re-render when context updates
   const scanResults = getAllScanResults();
 
-  // Fetch dashboard data on mount and refresh
+  // Fetch dashboard data on mount and refresh (but don't overwrite scan results)
   useEffect(() => {
     fetchDashboardData();
     // Set up periodic refresh every 5 minutes
     const interval = setInterval(fetchDashboardData, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, []); // Only run on mount, scan results will update via separate useEffect
 
-  // Update stats when scan results change
+  // Update stats and alerts when scan results change
   useEffect(() => {
     if (scanResults.length > 0) {
       // Aggregate findings from all scans
@@ -126,6 +126,13 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       let highFindings = 0;
       let mediumFindings = 0;
       let lowFindings = 0;
+      let totalResources = 0;
+      const allFindings: any[] = [];
+      
+      // Find the most recent scan (full scan takes priority, then IAM)
+      const fullScan = scanResults.find(r => r.scanner_type === 'full');
+      const iamScan = scanResults.find(r => r.scanner_type === 'iam');
+      const mostRecentScan = fullScan || iamScan || scanResults[0];
       
       scanResults.forEach(scan => {
         if (scan.scan_summary) {
@@ -133,18 +140,58 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
           highFindings += scan.scan_summary.high_findings || 0;
           mediumFindings += scan.scan_summary.medium_findings || 0;
           lowFindings += scan.scan_summary.low_findings || 0;
+          
+          // Aggregate resources
+          totalResources += (scan.scan_summary.users || 0) + 
+                           (scan.scan_summary.roles || 0) + 
+                           (scan.scan_summary.policies || 0) + 
+                           (scan.scan_summary.groups || 0);
+        }
+        
+        // Collect findings for alerts
+        if (scan.findings && Array.isArray(scan.findings)) {
+          allFindings.push(...scan.findings);
         }
       });
       
       totalFindings = criticalFindings + highFindings + mediumFindings + lowFindings;
+      
+      // Calculate compliance score (100 - (critical*10 + high*5 + medium*2 + low*1) / max_score)
+      const maxScore = 100;
+      const scoreDeduction = Math.min(maxScore, 
+        (criticalFindings * 10) + (highFindings * 5) + (mediumFindings * 2) + (lowFindings * 1)
+      );
+      const complianceScore = Math.max(0, Math.round(maxScore - scoreDeduction));
       
       // Update stats with scan results
       setStats(prev => ({
         ...prev,
         security_findings: totalFindings,
         critical_alerts: criticalFindings,
-        last_scan: scanResults[0]?.timestamp ? formatTimestamp(scanResults[0].timestamp) : "Recently"
+        total_resources: totalResources || prev.total_resources,
+        compliance_score: complianceScore,
+        last_scan: mostRecentScan?.timestamp ? formatTimestamp(mostRecentScan.timestamp) : "Recently"
       }));
+      
+      // Generate security alerts from findings (top 5 most critical)
+      const alerts: SecurityAlert[] = allFindings
+        .slice(0, 20) // Take top 20 findings
+        .sort((a, b) => {
+          const severityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+          return (severityOrder[b.severity as keyof typeof severityOrder] || 0) - 
+                 (severityOrder[a.severity as keyof typeof severityOrder] || 0);
+        })
+        .slice(0, 5) // Show top 5
+        .map((finding, index) => ({
+          id: finding.id || `${finding.scanner_type || 'scan'}-${index}`,
+          service: finding.scanner_type === 'iam' ? 'IAM' : finding.scanner_type?.toUpperCase() || 'AWS',
+          resource: finding.resource_name || finding.resource_arn || 'Unknown',
+          severity: (finding.severity as 'Critical' | 'High' | 'Medium' | 'Low') || 'Medium',
+          message: finding.description || finding.finding_type || 'Security finding detected',
+          timestamp: mostRecentScan?.timestamp || new Date().toISOString()
+        }));
+      
+      setSecurityAlerts(alerts);
     }
   }, [scanResults]);
 
@@ -162,30 +209,33 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       if (dashboard) {
         setDashboardData(dashboard);
         
-        // Update stats from dashboard data
-        summary = dashboard.summary || {};
-        compliance = dashboard.compliance || {};
-        
-        setStats({
-          last_scan: dashboard.summary ? "Recently" : "Never",
-          total_resources: (summary.compliant_resources || 0) + (summary.non_compliant_resources || 0),
-          security_findings: summary.total_findings || 0,
-          compliance_score: compliance.overall_score || 0,
-          critical_alerts: summary.critical_findings || 0,
-          cost_savings: 0
-        });
+        // Only update stats from dashboard data if we don't have scan results
+        // Scan results take priority and will be set by the useEffect hook
+        if (scanResults.length === 0) {
+          summary = dashboard.summary || {};
+          compliance = dashboard.compliance || {};
+          
+          setStats({
+            last_scan: dashboard.summary ? "Recently" : "Never",
+            total_resources: (summary.compliant_resources || 0) + (summary.non_compliant_resources || 0),
+            security_findings: summary.total_findings || 0,
+            compliance_score: compliance.overall_score || 0,
+            critical_alerts: summary.critical_findings || 0,
+            cost_savings: 0
+          });
 
-        // Transform alerts
-        if (dashboard.alerts && dashboard.alerts.length > 0) {
-          const transformedAlerts: SecurityAlert[] = dashboard.alerts.map((alert, index) => ({
-            id: alert.id || index,
-            service: alert.service || 'Unknown',
-            resource: alert.resource_id || 'Unknown',
-            severity: (alert.severity as 'Critical' | 'High' | 'Medium' | 'Low') || 'Medium',
-            message: alert.description || alert.title || 'Security alert',
-            timestamp: formatTimestamp(alert.timestamp)
-          }));
-          setSecurityAlerts(transformedAlerts);
+          // Transform alerts only if we don't have scan results
+          if (dashboard.alerts && dashboard.alerts.length > 0) {
+            const transformedAlerts: SecurityAlert[] = dashboard.alerts.map((alert, index) => ({
+              id: alert.id || index,
+              service: alert.service || 'Unknown',
+              resource: alert.resource_id || 'Unknown',
+              severity: (alert.severity as 'Critical' | 'High' | 'Medium' | 'Low') || 'Medium',
+              message: alert.description || alert.title || 'Security alert',
+              timestamp: formatTimestamp(alert.timestamp)
+            }));
+            setSecurityAlerts(transformedAlerts);
+          }
         }
       }
 
@@ -236,6 +286,17 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
     // Use scanResults from state (already reactive)
     const allScanResults = scanResults;
     
+    // Debug logging
+    if (allScanResults.length > 0) {
+      console.log('[Dashboard] Scan results found:', allScanResults.length, allScanResults.map(r => ({
+        type: r.scanner_type,
+        summary: r.scan_summary,
+        findingsCount: r.findings?.length || 0
+      })));
+    } else {
+      console.log('[Dashboard] No scan results in context');
+    }
+    
     // Aggregate findings from all scans (prioritize full scan if available)
     let totalFindings = 0;
     let criticalFindings = 0;
@@ -263,6 +324,8 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       });
       totalFindings = criticalFindings + highFindings + mediumFindings + lowFindings;
     }
+    
+    console.log('[Dashboard] Aggregated findings:', { totalFindings, criticalFindings, highFindings, mediumFindings, lowFindings });
     
     // If we have scan results, calculate percentages based on findings
     if (allScanResults.length > 0) {
@@ -313,14 +376,17 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
         ];
       }
       
-      return [
+      const result = [
         { name: 'Compliant', value: compliantPct, color: '#00ff88' },
         { name: 'Violations', value: violationsPct, color: '#ffb000' },
         { name: 'Critical', value: criticalPct, color: '#ff0040' }
       ];
+      console.log('[Dashboard] Calculated pie data:', result);
+      return result;
     }
     
     // Fallback to dashboard data if no scan results
+    console.log('[Dashboard] No scan results, using fallback data');
     const summary = dashboardData?.summary || {};
     const total = (summary.compliant_resources || 0) + (summary.non_compliant_resources || 0);
     if (total === 0) {
