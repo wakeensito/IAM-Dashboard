@@ -124,47 +124,41 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
     return () => clearInterval(interval);
   }, []); // Only run on mount, scan results will update via separate useEffect
 
-  // Update stats and alerts when scan results change
+  // Update stats and alerts when scan results change - USE ONLY THE MOST RECENT SCAN
   useEffect(() => {
     console.log('[Dashboard] useEffect triggered, scanResults.length:', scanResults.length, 'scanResultsSize:', scanResultsSize);
-    console.log('[Dashboard] scanResults:', scanResults.map(r => ({ type: r.scanner_type, summary: r.scan_summary, findingsCount: r.findings?.length || 0 })));
+    console.log('[Dashboard] scanResults:', scanResults.map(r => ({ type: r.scanner_type, summary: r.scan_summary, findingsCount: r.findings?.length || 0, timestamp: r.timestamp })));
     
     if (scanResults.length > 0) {
-      // Aggregate findings from all scans
-      let totalFindings = 0;
-      let criticalFindings = 0;
-      let highFindings = 0;
-      let mediumFindings = 0;
-      let lowFindings = 0;
-      let totalResources = 0;
-      const allFindings: any[] = [];
-      
-      // Find the most recent scan (full scan takes priority, then IAM)
-      const fullScan = scanResults.find(r => r.scanner_type === 'full');
-      const iamScan = scanResults.find(r => r.scanner_type === 'iam');
-      const mostRecentScan = fullScan || iamScan || scanResults[0];
-      
-      scanResults.forEach(scan => {
-        if (scan.scan_summary) {
-          criticalFindings += scan.scan_summary.critical_findings || 0;
-          highFindings += scan.scan_summary.high_findings || 0;
-          mediumFindings += scan.scan_summary.medium_findings || 0;
-          lowFindings += scan.scan_summary.low_findings || 0;
-          
-          // Aggregate resources
-          totalResources += (scan.scan_summary.users || 0) + 
-                           (scan.scan_summary.roles || 0) + 
-                           (scan.scan_summary.policies || 0) + 
-                           (scan.scan_summary.groups || 0);
-        }
-        
-        // Collect findings for alerts
-        if (scan.findings && Array.isArray(scan.findings)) {
-          allFindings.push(...scan.findings);
-        }
+      // Find the most recent scan by timestamp (full scan takes priority if same timestamp, then IAM)
+      const sortedScans = [...scanResults].sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime();
+        const timeB = new Date(b.timestamp).getTime();
+        if (timeB !== timeA) return timeB - timeA; // Most recent first
+        // If same timestamp, prioritize full scan, then IAM
+        if (a.scanner_type === 'full') return -1;
+        if (b.scanner_type === 'full') return 1;
+        if (a.scanner_type === 'iam') return -1;
+        if (b.scanner_type === 'iam') return 1;
+        return 0;
       });
       
-      totalFindings = criticalFindings + highFindings + mediumFindings + lowFindings;
+      const mostRecentScan = sortedScans[0];
+      console.log('[Dashboard] Using most recent scan:', { type: mostRecentScan.scanner_type, timestamp: mostRecentScan.timestamp, summary: mostRecentScan.scan_summary });
+      
+      // Use ONLY the most recent scan's data (not aggregating)
+      const summary = mostRecentScan.scan_summary || {};
+      const criticalFindings = summary.critical_findings || 0;
+      const highFindings = summary.high_findings || 0;
+      const mediumFindings = summary.medium_findings || 0;
+      const lowFindings = summary.low_findings || 0;
+      const totalFindings = criticalFindings + highFindings + mediumFindings + lowFindings;
+      
+      // Calculate resources from the most recent scan only
+      const totalResources = (summary.users || 0) + 
+                             (summary.roles || 0) + 
+                             (summary.policies || 0) + 
+                             (summary.groups || 0);
       
       // Calculate compliance score (100 - (critical*10 + high*5 + medium*2 + low*1) / max_score)
       const maxScore = 100;
@@ -173,20 +167,21 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       );
       const complianceScore = Math.max(0, Math.round(maxScore - scoreDeduction));
       
-      // Update stats with scan results
+      // Update stats with ONLY the most recent scan's results
       setStats(prev => ({
         ...prev,
         security_findings: totalFindings,
         critical_alerts: criticalFindings,
         high_findings: highFindings,
         medium_findings: mediumFindings,
-        total_resources: totalResources || prev.total_resources,
+        total_resources: totalResources,
         compliance_score: complianceScore,
-        last_scan: mostRecentScan?.timestamp ? formatTimestamp(mostRecentScan.timestamp) : "Recently"
+        last_scan: mostRecentScan.timestamp ? formatTimestamp(mostRecentScan.timestamp) : "Recently"
       }));
       
-      // Generate security alerts from findings (top 5 most critical)
-      const alerts: SecurityAlert[] = allFindings
+      // Generate security alerts from the most recent scan's findings only
+      const scanFindings = mostRecentScan.findings || [];
+      const alerts: SecurityAlert[] = scanFindings
         .slice(0, 20) // Take top 20 findings
         .sort((a, b) => {
           const severityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
@@ -195,22 +190,26 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
         })
         .slice(0, 5) // Show top 5
         .map((finding, index) => ({
-          id: finding.id || `${finding.scanner_type || 'scan'}-${index}`,
-          service: finding.scanner_type === 'iam' ? 'IAM' : finding.scanner_type?.toUpperCase() || 'AWS',
+          id: finding.id || `${mostRecentScan.scanner_type || 'scan'}-${index}`,
+          service: finding.scanner_type === 'iam' ? 'IAM' : mostRecentScan.scanner_type?.toUpperCase() || 'AWS',
           resource: finding.resource_name || finding.resource_arn || 'Unknown',
           severity: (finding.severity as 'Critical' | 'High' | 'Medium' | 'Low') || 'Medium',
           message: finding.description || finding.finding_type || 'Security finding detected',
-          timestamp: mostRecentScan?.timestamp || new Date().toISOString()
+          timestamp: mostRecentScan.timestamp || new Date().toISOString()
         }));
       
       setSecurityAlerts(alerts);
       
-      console.log('[Dashboard] Updated stats:', {
+      console.log('[Dashboard] Updated stats from most recent scan:', {
+        scanner_type: mostRecentScan.scanner_type,
+        timestamp: mostRecentScan.timestamp,
         security_findings: totalFindings,
         critical_alerts: criticalFindings,
+        high_findings: highFindings,
+        medium_findings: mediumFindings,
         total_resources: totalResources,
         compliance_score: complianceScore,
-        last_scan: mostRecentScan?.timestamp ? formatTimestamp(mostRecentScan.timestamp) : "Recently",
+        last_scan: mostRecentScan.timestamp ? formatTimestamp(mostRecentScan.timestamp) : "Recently",
         alertsCount: alerts.length
       });
     } else {
@@ -283,118 +282,52 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
     setWeeklyTrends(trends);
   };
 
-  // Calculate pie chart data from real scan results
+  // Calculate pie chart data from stats state (which uses only the most recent scan)
   const pieData = (() => {
-    // Use scanResults from state (already reactive)
-    const allScanResults = scanResults;
+    const complianceScore = stats?.compliance_score ?? 100;
+    const criticalCount = stats?.critical_alerts || 0;
+    const highCount = stats?.high_findings || 0;
+    const mediumCount = stats?.medium_findings || 0;
+    const totalFindings = stats?.security_findings || 0;
     
-    // Debug logging
-    if (allScanResults.length > 0) {
-      console.log('[Dashboard] Scan results found:', allScanResults.length, allScanResults.map(r => ({
-        type: r.scanner_type,
-        summary: r.scan_summary,
-        findingsCount: r.findings?.length || 0
-      })));
-    } else {
-      console.log('[Dashboard] No scan results in context');
-    }
+    console.log('[Dashboard] Pie chart using stats:', { 
+      complianceScore, 
+      criticalCount, 
+      highCount, 
+      mediumCount, 
+      totalFindings 
+    });
     
-    // Aggregate findings from all scans (prioritize full scan if available)
-    let totalFindings = 0;
-    let criticalFindings = 0;
-    let highFindings = 0;
-    let mediumFindings = 0;
-    let lowFindings = 0;
-    
-    // Find full scan first, then fall back to individual scans
-    const fullScan = allScanResults.find(r => r.scanner_type === 'full');
-    if (fullScan && fullScan.scan_summary) {
-      criticalFindings = fullScan.scan_summary.critical_findings || 0;
-      highFindings = fullScan.scan_summary.high_findings || 0;
-      mediumFindings = fullScan.scan_summary.medium_findings || 0;
-      lowFindings = fullScan.scan_summary.low_findings || 0;
-      totalFindings = criticalFindings + highFindings + mediumFindings + lowFindings;
-    } else {
-      // Aggregate from all individual scans
-      allScanResults.forEach(scan => {
-        if (scan.scan_summary) {
-          criticalFindings += scan.scan_summary.critical_findings || 0;
-          highFindings += scan.scan_summary.high_findings || 0;
-          mediumFindings += scan.scan_summary.medium_findings || 0;
-          lowFindings += scan.scan_summary.low_findings || 0;
-        }
-      });
-      totalFindings = criticalFindings + highFindings + mediumFindings + lowFindings;
-    }
-    
-    console.log('[Dashboard] Aggregated findings:', { totalFindings, criticalFindings, highFindings, mediumFindings, lowFindings });
-    
-    // If we have scan results, calculate percentages based on findings
-    if (allScanResults.length > 0) {
-      // If no findings at all, show 100% compliant (green)
-      if (totalFindings === 0) {
-        return [
-          { name: 'Compliant', value: 100, color: '#00ff88' },
-          { name: 'Violations', value: 0, color: '#ffb000' },
-          { name: 'Critical', value: 0, color: '#ff0040' }
-        ];
-      }
-      
-      // Calculate percentages based on actual findings
-      // Critical: percentage of critical findings relative to total
-      const criticalPct = totalFindings > 0 
-        ? Math.round((criticalFindings / totalFindings) * 100) 
-        : 0;
-      
-      // Violations: percentage of high + medium findings relative to total
-      const violationsPct = totalFindings > 0
-        ? Math.round(((highFindings + mediumFindings) / totalFindings) * 100)
-        : 0;
-      
-      // Compliant: remainder (shows green when findings are low or only low-severity)
-      // If we only have low-severity findings, still show mostly green
-      const compliantPct = Math.max(0, 100 - criticalPct - violationsPct);
-      
-      // If no critical or high findings, show mostly green (only low-severity findings)
-      if (criticalFindings === 0 && highFindings === 0) {
-        const lowOnlyPct = totalFindings > 0 
-          ? Math.min(15, Math.round((lowFindings / Math.max(totalFindings, 1)) * 15))
-          : 0;
-        return [
-          { name: 'Compliant', value: 100 - lowOnlyPct, color: '#00ff88' },
-          { name: 'Violations', value: lowOnlyPct, color: '#ffb000' },
-          { name: 'Critical', value: 0, color: '#ff0040' }
-        ];
-      }
-      
-      // Normalize to ensure they sum to 100%
-      const sum = criticalPct + violationsPct + compliantPct;
-      if (sum !== 100 && sum > 0) {
-        const scale = 100 / sum;
-    return [
-          { name: 'Compliant', value: Math.round(compliantPct * scale), color: '#00ff88' },
-          { name: 'Violations', value: Math.round(violationsPct * scale), color: '#ffb000' },
-          { name: 'Critical', value: Math.round(criticalPct * scale), color: '#ff0040' }
-        ];
-      }
-      
-      const result = [
-      { name: 'Compliant', value: compliantPct, color: '#00ff88' },
-      { name: 'Violations', value: violationsPct, color: '#ffb000' },
-      { name: 'Critical', value: criticalPct, color: '#ff0040' }
+    // If no scan has been run (neutral state), show 100% compliant
+    if (stats?.last_scan === "Never" || totalFindings === 0) {
+      return [
+        { name: 'Compliant', value: 100, color: '#00ff88' },
+        { name: 'Violations', value: 0, color: '#ffb000' },
+        { name: 'Critical', value: 0, color: '#ff0040' }
       ];
-      console.log('[Dashboard] Calculated pie data:', result);
-      return result;
     }
     
-    // Fallback: Show 100% compliant (neutral state) when no scan results
-    // This creates a better UX - users see results populate when they scan
-    console.log('[Dashboard] No scan results, showing neutral state (100% compliant)');
-    return [
-      { name: 'Compliant', value: 100, color: '#00ff88' },
-      { name: 'Violations', value: 0, color: '#ffb000' },
-      { name: 'Critical', value: 0, color: '#ff0040' }
+    // Calculate pie chart based on compliance score and findings
+    // Compliant: the compliance score percentage
+    const compliantPct = Math.max(0, Math.min(100, complianceScore));
+    
+    // Critical: percentage based on critical findings impact
+    // Critical findings reduce compliance significantly, so show their impact
+    const criticalPct = totalFindings > 0 
+      ? Math.min(100 - compliantPct, Math.round((criticalCount / Math.max(totalFindings, 1)) * (100 - complianceScore)))
+      : 0;
+    
+    // Violations: the remainder (high + medium findings impact)
+    const violationsPct = Math.max(0, 100 - compliantPct - criticalPct);
+    
+    const result = [
+      { name: 'Compliant', value: Math.round(compliantPct), color: '#00ff88' },
+      { name: 'Violations', value: Math.round(violationsPct), color: '#ffb000' },
+      { name: 'Critical', value: Math.round(criticalPct), color: '#ff0040' }
     ];
+    
+    console.log('[Dashboard] Calculated pie data from stats:', result);
+    return result;
   })();
 
   // Get recent security activity

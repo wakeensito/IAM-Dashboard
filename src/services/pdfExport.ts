@@ -39,14 +39,8 @@ export function exportScanResultToPDF(data: ScanResultData, title: string = 'Sec
   printWindow.document.write(htmlContent);
   printWindow.document.close();
 
-  // Wait for content to load, then print
-  printWindow.onload = () => {
-    setTimeout(() => {
-      printWindow.print();
-      // Optionally close after printing
-      // printWindow.close();
-    }, 250);
-  };
+  // Just open the window - user can manually print if they want
+  // The window will display the report and user can use browser's print function (Ctrl/Cmd+P)
 }
 
 /**
@@ -63,6 +57,11 @@ function extractFindings(data: ScanResultData): any[] {
     return data.results.findings;
   }
   
+  // For full scan, extract findings from IAM results
+  if (data.results?.iam?.findings && Array.isArray(data.results.iam.findings)) {
+    return data.results.iam.findings;
+  }
+  
   // Check for nested scan results (comprehensive reports)
   if (data.results?.scans && Array.isArray(data.results.scans)) {
     const allFindings: any[] = [];
@@ -72,6 +71,10 @@ function extractFindings(data: ScanResultData): any[] {
       }
       if (scan.results?.findings && Array.isArray(scan.results.findings)) {
         allFindings.push(...scan.results.findings);
+      }
+      // Check nested IAM findings
+      if (scan.results?.iam?.findings && Array.isArray(scan.results.iam.findings)) {
+        allFindings.push(...scan.results.iam.findings);
       }
     });
     return allFindings;
@@ -87,7 +90,108 @@ function extractFindings(data: ScanResultData): any[] {
     return data.results.security_hub_findings;
   }
   
+  // For IAM scans, check nested locations
+  if (data.results?.users?.findings && Array.isArray(data.results.users.findings)) {
+    return data.results.users.findings;
+  }
+  if (data.results?.roles?.findings && Array.isArray(data.results.roles.findings)) {
+    return data.results.roles.findings;
+  }
+  
   return [];
+}
+
+/**
+ * Extract scan summary from various possible locations in the data
+ */
+function extractScanSummary(data: ScanResultData): ScanResultData['scan_summary'] {
+  // Direct scan_summary
+  if (data.scan_summary) {
+    return data.scan_summary;
+  }
+  
+  // For full scan, extract from IAM results and combine with resource counts
+  if (data.results?.iam) {
+    const iamResults = data.results.iam;
+    const summary: ScanResultData['scan_summary'] = {
+      critical_findings: iamResults.scan_summary?.critical_findings || 0,
+      high_findings: iamResults.scan_summary?.high_findings || 0,
+      medium_findings: iamResults.scan_summary?.medium_findings || 0,
+      low_findings: iamResults.scan_summary?.low_findings || 0,
+      users: iamResults.users?.total || iamResults.scan_summary?.users || 0,
+      roles: iamResults.roles?.total || iamResults.scan_summary?.roles || 0,
+      policies: iamResults.policies?.total || iamResults.scan_summary?.policies || 0,
+      groups: iamResults.groups?.total || iamResults.scan_summary?.groups || 0
+    };
+    return summary;
+  }
+  
+  // Check in results.scan_summary
+  if (data.results?.scan_summary) {
+    return data.results.scan_summary;
+  }
+  
+  // For IAM scans, extract resource counts from nested structure
+  if (data.results?.users || data.results?.roles) {
+    return {
+      critical_findings: data.results.scan_summary?.critical_findings || 0,
+      high_findings: data.results.scan_summary?.high_findings || 0,
+      medium_findings: data.results.scan_summary?.medium_findings || 0,
+      low_findings: data.results.scan_summary?.low_findings || 0,
+      users: data.results.users?.total || 0,
+      roles: data.results.roles?.total || 0,
+      policies: data.results.policies?.total || 0,
+      groups: data.results.groups?.total || 0
+    };
+  }
+  
+  // For comprehensive reports with nested scans
+  if (data.results?.scans && Array.isArray(data.results.scans)) {
+    // Aggregate from all scans
+    const aggregated: ScanResultData['scan_summary'] = {
+      critical_findings: 0,
+      high_findings: 0,
+      medium_findings: 0,
+      low_findings: 0,
+      users: 0,
+      roles: 0,
+      policies: 0,
+      groups: 0
+    };
+    
+    data.results.scans.forEach((scan: any) => {
+      if (scan.scan_summary) {
+        aggregated.critical_findings = (aggregated.critical_findings || 0) + (scan.scan_summary.critical_findings || 0);
+        aggregated.high_findings = (aggregated.high_findings || 0) + (scan.scan_summary.high_findings || 0);
+        aggregated.medium_findings = (aggregated.medium_findings || 0) + (scan.scan_summary.medium_findings || 0);
+        aggregated.low_findings = (aggregated.low_findings || 0) + (scan.scan_summary.low_findings || 0);
+        aggregated.users = (aggregated.users || 0) + (scan.scan_summary.users || 0);
+        aggregated.roles = (aggregated.roles || 0) + (scan.scan_summary.roles || 0);
+        aggregated.policies = (aggregated.policies || 0) + (scan.scan_summary.policies || 0);
+        aggregated.groups = (aggregated.groups || 0) + (scan.scan_summary.groups || 0);
+      }
+      // Also check nested resource counts
+      if (scan.results?.users?.total) aggregated.users = (aggregated.users || 0) + scan.results.users.total;
+      if (scan.results?.roles?.total) aggregated.roles = (aggregated.roles || 0) + scan.results.roles.total;
+      if (scan.results?.policies?.total) aggregated.policies = (aggregated.policies || 0) + scan.results.policies.total;
+      if (scan.results?.groups?.total) aggregated.groups = (aggregated.groups || 0) + scan.results.groups.total;
+    });
+    
+    return aggregated;
+  }
+  
+  // Try to calculate from findings if available
+  const findings = extractFindings(data);
+  if (findings.length > 0) {
+    return {
+      critical_findings: findings.filter((f: any) => (f.severity || '').toLowerCase() === 'critical').length,
+      high_findings: findings.filter((f: any) => (f.severity || '').toLowerCase() === 'high').length,
+      medium_findings: findings.filter((f: any) => (f.severity || '').toLowerCase() === 'medium').length,
+      low_findings: findings.filter((f: any) => (f.severity || '').toLowerCase() === 'low').length
+    };
+  }
+  
+  return {};
 }
 
 /**
@@ -95,8 +199,9 @@ function extractFindings(data: ScanResultData): any[] {
  */
 function generateReportHTML(data: ScanResultData, title: string): string {
   const date = new Date(data.timestamp).toLocaleString();
-  const summary = data.scan_summary || {};
+  const summary = extractScanSummary(data);
   const findings = extractFindings(data);
+  const reportType = data.scanner_type || 'comprehensive';
   
   // Group findings by severity
   const findingsBySeverity = {
@@ -109,6 +214,75 @@ function generateReportHTML(data: ScanResultData, title: string): string {
       return !['critical', 'high', 'medium', 'low'].includes(sev);
     })
   };
+
+  // Generate template-specific content
+  let executiveSection = '';
+  let threatAnalysisSection = '';
+  let complianceSection = '';
+
+  // Executive Summary specific content
+  if (reportType === 'executive-summary') {
+    const totalFindings = (summary.critical_findings || 0) + (summary.high_findings || 0) + (summary.medium_findings || 0) + (summary.low_findings || 0);
+    const compliancePercentage = (data.results as any)?.executive_metrics?.compliance_percentage || 
+      (data.results as any)?.scan_summary?.compliance_score || 
+      (totalFindings === 0 ? 100 : Math.max(0, Math.round(100 - ((summary.critical_findings || 0) * 10 + (summary.high_findings || 0) * 5) / (totalFindings || 1) * 100)));
+    
+    complianceSection = `
+    <div class="section" style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+      <h2 style="margin-top: 0;">Compliance Overview</h2>
+      <div style="text-align: center; margin: 30px 0;">
+        <div style="font-size: 48px; font-weight: bold; color: ${compliancePercentage >= 80 ? '#00ff88' : compliancePercentage >= 60 ? '#ffb000' : '#ff0040'};">
+          ${compliancePercentage}%
+        </div>
+        <p style="font-size: 18px; color: #666; margin-top: 10px;">Overall Compliance Score</p>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
+        <div style="padding: 15px; background: white; border-radius: 5px;">
+          <strong>Total Scans Analyzed:</strong> ${(data.results as any)?.scan_summary?.total_scans || 'N/A'}
+        </div>
+        <div style="padding: 15px; background: white; border-radius: 5px;">
+          <strong>Total Findings:</strong> ${summary.total_findings || summary.critical_findings + summary.high_findings + summary.medium_findings + summary.low_findings || 0}
+        </div>
+      </div>
+    </div>
+    `;
+  }
+
+  // Threat Intelligence specific content
+  if (reportType === 'threat-intelligence') {
+    const threatAnalysis = (data.results as any)?.threat_analysis || {};
+    const threatsByType = (data.results as any)?.threats_by_type || {};
+    
+    threatAnalysisSection = `
+    <div class="section">
+      <h2>Threat Analysis</h2>
+      <div style="background: #fff3cd; padding: 15px; border-left: 4px solid #ffb000; margin: 20px 0;">
+        <p><strong>Total Threats Identified:</strong> ${threatAnalysis.total_threats || findings.length}</p>
+        <p><strong>Critical Threats:</strong> ${threatAnalysis.critical_count || findingsBySeverity.Critical.length}</p>
+        <p><strong>High Severity Threats:</strong> ${threatAnalysis.high_count || findingsBySeverity.High.length}</p>
+        <p><strong>Threat Categories:</strong> ${threatAnalysis.threat_types?.length || Object.keys(threatsByType).length}</p>
+      </div>
+      
+      ${Object.keys(threatsByType).length > 0 ? `
+      <h3 style="margin-top: 30px;">Threats by Category</h3>
+      ${Object.entries(threatsByType).map(([type, threats]: [string, any[]]) => `
+        <div style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px;">
+          <h4 style="margin-top: 0; color: #0066cc;">${type} (${threats.length} threats)</h4>
+          <ul style="margin: 10px 0; padding-left: 20px;">
+            ${threats.slice(0, 5).map((threat: any) => `
+              <li style="margin: 5px 0;">
+                <strong>${threat.resource_name || threat.resource_id || 'Unknown'}:</strong> 
+                ${threat.description || threat.title || 'No description'}
+              </li>
+            `).join('')}
+            ${threats.length > 5 ? `<li style="color: #666; font-style: italic;">... and ${threats.length - 5} more</li>` : ''}
+          </ul>
+        </div>
+      `).join('')}
+      ` : ''}
+    </div>
+    `;
+  }
 
   return `
 <!DOCTYPE html>
@@ -211,7 +385,7 @@ function generateReportHTML(data: ScanResultData, title: string): string {
   </div>
 
   <div class="section">
-    <h2>Executive Summary</h2>
+    <h2>${reportType === 'executive-summary' ? 'Key Metrics' : 'Executive Summary'}</h2>
     <div class="summary-grid">
       <div class="summary-card">
         <h3 class="critical">${summary.critical_findings || 0}</h3>
@@ -232,6 +406,10 @@ function generateReportHTML(data: ScanResultData, title: string): string {
     </div>
   </div>
 
+  ${complianceSection}
+
+  ${threatAnalysisSection}
+
   ${data.scan_summary ? `
   <div class="section">
     <h2>Resource Summary</h2>
@@ -250,7 +428,7 @@ function generateReportHTML(data: ScanResultData, title: string): string {
 
   ${findings.length > 0 ? `
   <div class="section">
-    <h2>Detailed Findings (${findings.length} total)</h2>
+    <h2>${reportType === 'executive-summary' ? 'Top Critical Risks' : reportType === 'threat-intelligence' ? 'Threat Details' : 'Detailed Findings'} (${findings.length} total)</h2>
     ${findingsBySeverity.Critical.length > 0 ? `
     <div class="severity-section" style="margin: 20px 0;">
       <h3 style="color: #ff0040; margin-bottom: 10px;">Critical Findings (${findingsBySeverity.Critical.length})</h3>
