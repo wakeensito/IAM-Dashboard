@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -7,6 +7,7 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Switch } from "./ui/switch";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 import { 
   AlertTriangle, 
   Bell, 
@@ -24,6 +25,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { DemoModeBanner } from "./DemoModeBanner";
+import { useScanResults } from "../context/ScanResultsContext";
+import { maskSensitiveData } from "../utils/security";
 
 interface SecurityAlert {
   id: string;
@@ -142,11 +145,84 @@ const mockAlertRules: AlertRule[] = [
 ];
 
 export function CloudSecurityAlerts() {
-  const [alerts, setAlerts] = useState<SecurityAlert[]>(mockAlerts);
+  const { getAllScanResults, scanResultsVersion } = useScanResults();
   const [alertRules, setAlertRules] = useState<AlertRule[]>(mockAlertRules);
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
   const [selectedService, setSelectedService] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [acknowledgedAlerts, setAcknowledgedAlerts] = useState<Set<string>>(new Set());
+  const [resolvedAlerts, setResolvedAlerts] = useState<Set<string>>(new Set());
+
+  // Get all scan results
+  const scanResults = useMemo(() => {
+    return getAllScanResults();
+  }, [scanResultsVersion, getAllScanResults]);
+
+  // Transform scan findings into SecurityAlert format
+  const alerts = useMemo(() => {
+    const allAlerts: SecurityAlert[] = [];
+    
+    scanResults.forEach(scan => {
+      const findings = scan.findings || [];
+      const scannerType = scan.scanner_type || 'unknown';
+      
+      findings.forEach((finding: any, index: number) => {
+        const severity = (finding.severity || 'Medium').charAt(0).toUpperCase() + 
+                        (finding.severity || 'Medium').slice(1).toLowerCase();
+        const alertId = finding.id || `${scannerType}-${scan.scan_id}-${index}`;
+        
+        // Determine service name from scanner type or finding
+        let service = scannerType.toUpperCase();
+        if (scannerType === 'iam') service = 'IAM';
+        else if (scannerType === 'ec2') service = 'EC2';
+        else if (scannerType === 's3') service = 'S3';
+        else if (scannerType === 'security-hub') service = 'Security Hub';
+        else if (scannerType === 'guardduty') service = 'GuardDuty';
+        else if (scannerType === 'config') service = 'Config';
+        else if (scannerType === 'inspector') service = 'Inspector';
+        else if (scannerType === 'macie') service = 'Macie';
+        
+        // Determine status based on user actions
+        let status: 'Active' | 'Acknowledged' | 'Resolved' = 'Active';
+        if (resolvedAlerts.has(alertId)) {
+          status = 'Resolved';
+        } else if (acknowledgedAlerts.has(alertId)) {
+          status = 'Acknowledged';
+        }
+        
+        // Generate rule ID based on finding type
+        const findingType = (finding.type || finding.finding_type || '').toLowerCase();
+        let ruleId = 'rule-generic';
+        if (findingType.includes('public') || findingType.includes('s3')) ruleId = 'rule-s3-public';
+        else if (findingType.includes('security') || findingType.includes('group')) ruleId = 'rule-sg-unrestricted';
+        else if (findingType.includes('mfa') || findingType.includes('iam')) ruleId = 'rule-iam-no-mfa';
+        else if (findingType.includes('encryption') || findingType.includes('rds')) ruleId = 'rule-rds-encryption';
+        
+        const resourceId = finding.resource_name || finding.resource_arn || finding.resource_id || 'Unknown';
+        const description = finding.description || finding.recommendation || 'Security issue detected';
+        
+        allAlerts.push({
+          id: alertId,
+          title: finding.title || finding.finding_type || maskSensitiveData(description)?.substring(0, 50) || 'Security Finding',
+          description: maskSensitiveData(description),
+          severity: (severity as 'Critical' | 'High' | 'Medium' | 'Low') || 'Medium',
+          service,
+          resource_id: maskSensitiveData(resourceId),
+          timestamp: finding.timestamp || scan.timestamp || new Date().toISOString(),
+          status,
+          rule_id: ruleId
+        });
+      });
+    });
+    
+    // Sort by severity (Critical first) and timestamp (newest first)
+    return allAlerts.sort((a, b) => {
+      const severityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+      const severityDiff = (severityOrder[b.severity] || 0) - (severityOrder[a.severity] || 0);
+      if (severityDiff !== 0) return severityDiff;
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
+  }, [scanResults, acknowledgedAlerts, resolvedAlerts]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -168,20 +244,12 @@ export function CloudSecurityAlerts() {
   };
 
   const handleAcknowledgeAlert = (alertId: string) => {
-    setAlerts(alerts.map(alert => 
-      alert.id === alertId 
-        ? { ...alert, status: 'Acknowledged' as const, assignee: 'Current User' }
-        : alert
-    ));
+    setAcknowledgedAlerts(prev => new Set([...prev, alertId]));
     toast.success('Alert acknowledged');
   };
 
   const handleResolveAlert = (alertId: string) => {
-    setAlerts(alerts.map(alert => 
-      alert.id === alertId 
-        ? { ...alert, status: 'Resolved' as const }
-        : alert
-    ));
+    setResolvedAlerts(prev => new Set([...prev, alertId]));
     toast.success('Alert resolved');
   };
 
@@ -191,6 +259,24 @@ export function CloudSecurityAlerts() {
     if (selectedStatus !== 'all' && alert.status !== selectedStatus) return false;
     return true;
   });
+
+  // Group alerts by severity
+  const groupedAlerts = useMemo(() => {
+    const groups: Record<string, SecurityAlert[]> = {
+      'Critical': [],
+      'High': [],
+      'Medium': [],
+      'Low': []
+    };
+    
+    filteredAlerts.forEach(alert => {
+      if (groups[alert.severity]) {
+        groups[alert.severity].push(alert);
+      }
+    });
+    
+    return groups;
+  }, [filteredAlerts]);
 
   const alertsStats = {
     total: alerts.length,
@@ -307,70 +393,104 @@ export function CloudSecurityAlerts() {
                 </Button>
               </div>
 
-              {/* Alerts List */}
-              <div className="space-y-3">
-                {filteredAlerts.map((alert) => (
-                  <div key={alert.id} className="cyber-glass p-4 rounded-lg">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h4 className="font-medium">{alert.title}</h4>
-                          <Badge className={getSeverityColor(alert.severity)}>
-                            {alert.severity}
-                          </Badge>
-                          <Badge className={getStatusColor(alert.status)}>
-                            {alert.status}
-                          </Badge>
-                          <Badge variant="outline">
-                            {alert.service}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {alert.description}
-                        </p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {new Date(alert.timestamp).toLocaleString()}
-                          </span>
-                          <span>Resource: {alert.resource_id}</span>
-                          {alert.assignee && (
-                            <span className="flex items-center gap-1">
-                              <Users className="h-3 w-3" />
-                              {alert.assignee}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        {alert.status === 'Active' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleAcknowledgeAlert(alert.id)}
-                            className="border-border"
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Acknowledge
-                          </Button>
-                        )}
-                        {alert.status !== 'Resolved' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleResolveAlert(alert.id)}
-                            className="border-border"
-                          >
-                            <Shield className="h-4 w-4 mr-1" />
-                            Resolve
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {/* Alerts List - Grouped by Severity */}
+              {filteredAlerts.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No security alerts found.</p>
+                  <p className="text-sm mt-2">Run a security scan to generate alerts from findings.</p>
+                </div>
+              ) : (
+                <Accordion type="multiple" className="w-full space-y-2">
+                  {(['Critical', 'High', 'Medium', 'Low'] as const).map((severity) => {
+                    const severityAlerts = groupedAlerts[severity] || [];
+                    if (severityAlerts.length === 0) return null;
+                    
+                    return (
+                      <AccordionItem 
+                        key={severity} 
+                        value={severity} 
+                        className="border border-border/60 rounded-lg mb-4 px-4 py-2 bg-muted/5 hover:bg-muted/10 transition-colors"
+                      >
+                        <AccordionTrigger className="hover:no-underline py-4 px-2">
+                          <div className="flex items-center justify-between w-full pr-4">
+                            <div className="flex items-center gap-4">
+                              <Badge className={getSeverityColor(severity)}>
+                                {severity}
+                              </Badge>
+                              <span className="text-sm font-medium">
+                                {severityAlerts.length} alert{severityAlerts.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-2 pb-4">
+                          <div className="space-y-3">
+                            {severityAlerts.map((alert) => (
+                              <div key={alert.id} className="cyber-glass p-4 rounded-lg border border-border/50 bg-card/50">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                      <h4 className="font-medium text-sm">{alert.title}</h4>
+                                      <Badge className={getStatusColor(alert.status)}>
+                                        {alert.status}
+                                      </Badge>
+                                      <Badge variant="outline" className="text-xs">
+                                        {alert.service}
+                                      </Badge>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mb-3">
+                                      {alert.description}
+                                    </p>
+                                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                                      <span className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        {new Date(alert.timestamp).toLocaleString()}
+                                      </span>
+                                      <span className="font-mono text-xs break-all">Resource: {maskSensitiveData(alert.resource_id)}</span>
+                                      {alert.assignee && (
+                                        <span className="flex items-center gap-1">
+                                          <Users className="h-3 w-3" />
+                                          {alert.assignee}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex gap-2 flex-shrink-0">
+                                    {alert.status === 'Active' && (
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => handleAcknowledgeAlert(alert.id)}
+                                        className="border-border"
+                                      >
+                                        <CheckCircle className="h-4 w-4 mr-1" />
+                                        Acknowledge
+                                      </Button>
+                                    )}
+                                    {alert.status !== 'Resolved' && (
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => handleResolveAlert(alert.id)}
+                                        className="border-border"
+                                      >
+                                        <Shield className="h-4 w-4 mr-1" />
+                                        Resolve
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              )}
             </TabsContent>
 
             <TabsContent value="rules" className="space-y-4">

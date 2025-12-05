@@ -16,6 +16,78 @@ from decimal import Decimal
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+def mask_arn(text: str) -> str:
+    """
+    Mask AWS ARNs to prevent exposure of account IDs and sensitive resource identifiers
+    ARN format: arn:aws:service:region:account-id:resource-type/resource-id
+    Shows: arn:aws:service:region:****:resource-type/...xxxx (masks account ID and part of resource ID)
+    """
+    import re
+    if not text:
+        return text
+    
+    # Pattern: arn:aws:service:region:account-id:resource-type/resource-id
+    pattern = r'(arn:aws:[^:]+:[^:]*:)([0-9]{12}|[a-z0-9-]+)(:)([^/]+)(/)(.+)'
+    
+    def replace(match):
+        prefix = match.group(1)
+        account_id = match.group(2)
+        colon = match.group(3)
+        resource_type = match.group(4)
+        slash = match.group(5)
+        resource_id = match.group(6)
+        
+        # Mask account ID (12 digits or alphanumeric)
+        if len(account_id) == 12 and account_id.isdigit():
+            masked_account_id = '****'
+        elif len(account_id) > 4:
+            masked_account_id = f"{account_id[:2]}...{account_id[-2:]}"
+        else:
+            masked_account_id = '****'
+        
+        # Mask resource ID if it's long (show first 4 and last 4 chars)
+        if len(resource_id) > 12:
+            masked_resource_id = f"{resource_id[:4]}...{resource_id[-4:]}"
+        elif len(resource_id) > 8:
+            masked_resource_id = f"{resource_id[:2]}...{resource_id[-2:]}"
+        else:
+            masked_resource_id = resource_id
+        
+        return f"{prefix}{masked_account_id}{colon}{resource_type}{slash}{masked_resource_id}"
+    
+    return re.sub(pattern, replace, text, flags=re.IGNORECASE)
+
+def mask_access_key(text: str) -> str:
+    """
+    Mask AWS access keys in text to prevent exposure
+    AWS access keys are 20 characters: AKIA + 16 alphanumeric
+    Shows: AKIA...xxxx (first 4 + last 4 characters)
+    """
+    import re
+    if not text:
+        return text
+    
+    # Pattern: AKIA followed by exactly 16 alphanumeric characters
+    pattern = r'(AKIA[0-9A-Z]{16})'
+    
+    def replace(match):
+        key = match.group(1)
+        if len(key) == 20:
+            return f"{key[:4]}...{key[-4:]}"
+        return key
+    
+    return re.sub(pattern, replace, text, flags=re.IGNORECASE)
+
+def mask_sensitive_data(text: str) -> str:
+    """
+    Mask both access keys and ARNs in a string
+    """
+    if not text:
+        return text
+    masked = mask_arn(text)
+    masked = mask_access_key(masked)
+    return masked
+
 # Initialize AWS clients
 s3_client = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
@@ -350,13 +422,29 @@ def scan_security_hub(region: str, scan_params: Dict[str, Any], scan_id: str) ->
         }
         
     except ClientError as e:
-        logger.error(f"Error scanning Security Hub: {str(e)}")
-        if e.response['Error']['Code'] == 'InvalidAccessException':
+        error_code = e.response.get('Error', {}).get('Code', '')
+        error_message = str(e)
+        logger.error(f"Error scanning Security Hub: {error_code} - {error_message}")
+        
+        if error_code == 'InvalidAccessException':
             return {
                 'error': 'Security Hub is not enabled in this region',
-                'scan_type': 'security-hub'
+                'scan_type': 'security-hub',
+                'error_code': error_code
             }
-        raise
+        elif error_code == 'AccessDeniedException':
+            return {
+                'error': 'Lambda does not have permission to access Security Hub',
+                'scan_type': 'security-hub',
+                'error_code': error_code,
+                'message': error_message
+            }
+        else:
+            return {
+                'error': f'Error accessing Security Hub: {error_message}',
+                'scan_type': 'security-hub',
+                'error_code': error_code
+            }
 
 
 def scan_guardduty(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str, Any]:
@@ -618,7 +706,7 @@ def analyze_policy_document(policy_doc: Dict[str, Any], role_name: str, role_arn
                         'severity': 'High',
                         'type': 'role',
                         'resource_name': role_name,
-                        'resource_arn': role_arn,
+                        'resource_arn': mask_sensitive_data(role_arn),
                         'description': f'Role "{role_name}" allows {action} on all S3 buckets in policy "{policy_name or "attached"}"',
                         'recommendation': 'Restrict S3 permissions to specific buckets and enable public access block',
                         'finding_type': 's3_public_write',
@@ -632,7 +720,7 @@ def analyze_policy_document(policy_doc: Dict[str, Any], role_name: str, role_arn
                         'severity': 'Medium',
                         'type': 'role',
                         'resource_name': role_name,
-                        'resource_arn': role_arn,
+                        'resource_arn': mask_sensitive_data(role_arn),
                         'description': f'Role "{role_name}" allows {action} on all DynamoDB tables in policy "{policy_name or "attached"}"',
                         'recommendation': 'Restrict DynamoDB permissions to specific tables',
                         'finding_type': 'dynamodb_broad_permissions',
@@ -647,7 +735,7 @@ def analyze_policy_document(policy_doc: Dict[str, Any], role_name: str, role_arn
                             'severity': 'High',
                             'type': 'role',
                             'resource_name': role_name,
-                            'resource_arn': role_arn,
+                            'resource_arn': mask_sensitive_data(role_arn),
                             'description': f'Role "{role_name}" allows invoking all Lambda functions in policy "{policy_name or "attached"}"',
                             'recommendation': 'Restrict Lambda invoke permissions to specific functions',
                             'finding_type': 'lambda_public_invoke',
@@ -661,7 +749,7 @@ def analyze_policy_document(policy_doc: Dict[str, Any], role_name: str, role_arn
                         'severity': 'High',
                         'type': 'role',
                         'resource_name': role_name,
-                        'resource_arn': role_arn,
+                        'resource_arn': mask_sensitive_data(role_arn),
                         'description': f'Role "{role_name}" can create/modify IAM resources ({action}) in policy "{policy_name or "attached"}"',
                         'recommendation': 'Review if this permission is necessary and restrict to specific resources',
                         'finding_type': 'iam_privilege_escalation',
@@ -678,7 +766,7 @@ def analyze_policy_document(policy_doc: Dict[str, Any], role_name: str, role_arn
                         'severity': 'High',
                         'type': 'role',
                         'resource_name': role_name,
-                        'resource_arn': role_arn,
+                        'resource_arn': mask_sensitive_data(role_arn),
                         'description': f'Role "{role_name}" has write permissions on all resources (*) in policy "{policy_name or "attached"}"',
                         'recommendation': 'Restrict resource ARNs to specific resources only',
                         'finding_type': 'wildcard_resource',
@@ -750,9 +838,9 @@ def scan_iam(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
                             findings.append({
                                 'severity': 'Medium',
                                 'type': 'access_key',
-                                'resource_name': f'{user_name}/{key_id}',
-                                'resource_arn': user_arn,
-                                'description': f'Access key {key_id} for user "{user_name}" is {key_age} days old',
+                                'resource_name': mask_sensitive_data(f'{user_name}/{key_id}'),
+                                'resource_arn': mask_sensitive_data(user_arn),
+                                'description': mask_sensitive_data(f'Access key {key_id} for user "{user_name}" is {key_age} days old'),
                                 'recommendation': 'Rotate access keys every 90 days for security best practices',
                                 'finding_type': 'old_access_key'
                             })
@@ -768,9 +856,9 @@ def scan_iam(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
                                 findings.append({
                                     'severity': 'Low',
                                     'type': 'access_key',
-                                    'resource_name': f'{user_name}/{key_id}',
-                                    'resource_arn': user_arn,
-                                    'description': f'Access key {key_id} has not been used in {days_since_use} days',
+                                    'resource_name': mask_sensitive_data(f'{user_name}/{key_id}'),
+                                    'resource_arn': mask_sensitive_data(user_arn),
+                                    'description': mask_sensitive_data(f'Access key {key_id} has not been used in {days_since_use} days'),
                                     'recommendation': 'Consider removing unused access keys',
                                     'finding_type': 'unused_access_key'
                                 })
@@ -911,7 +999,7 @@ def scan_iam(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
                         'severity': 'Critical',
                         'type': 'role',
                         'resource_name': role_name,
-                        'resource_arn': role_arn,
+                        'resource_arn': mask_sensitive_data(role_arn),
                         'description': f'Role "{role_name}" allows public/external access (wildcard principal)',
                         'recommendation': 'Restrict trust policy to specific principals only',
                         'finding_type': 'public_trust_policy',
@@ -924,7 +1012,7 @@ def scan_iam(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
                         'severity': 'High',
                         'type': 'role',
                         'resource_name': role_name,
-                        'resource_arn': role_arn,
+                        'resource_arn': mask_sensitive_data(role_arn),
                         'description': f'Role "{role_name}" allows access from external AWS accounts: {", ".join(external_principals[:3])}',
                         'recommendation': 'Review and restrict to trusted accounts only',
                         'finding_type': 'external_account_access',
@@ -943,7 +1031,7 @@ def scan_iam(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
                             'severity': 'Critical',
                             'type': 'role',
                             'resource_name': role_name,
-                            'resource_arn': role_arn,
+                            'resource_arn': mask_sensitive_data(role_arn),
                             'description': f'Role "{role_name}" has AdministratorAccess policy attached',
                             'recommendation': 'Remove AdministratorAccess and use least privilege principles',
                             'finding_type': 'admin_access',
@@ -1115,7 +1203,7 @@ def scan_ec2(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
                     'severity': 'Critical',
                     'type': 'instance',
                     'resource_name': instance_id,
-                    'resource_arn': instance_arn,
+                    'resource_arn': mask_sensitive_data(instance_arn),
                     'description': f'EC2 instance {instance_id} has a public IP address ({instance.get("PublicIpAddress")})',
                     'recommendation': 'Review security groups and consider using private subnets with NAT Gateway',
                     'finding_type': 'public_instance'
@@ -1130,7 +1218,7 @@ def scan_ec2(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
                     'severity': 'High',
                     'type': 'instance',
                     'resource_name': instance_id,
-                    'resource_arn': instance_arn,
+                    'resource_arn': mask_sensitive_data(instance_arn),
                     'description': f'EC2 instance {instance_id} does not require IMDSv2 (Instance Metadata Service v2)',
                     'recommendation': 'Enable IMDSv2 to protect against SSRF attacks',
                     'finding_type': 'missing_imdsv2'
@@ -1151,7 +1239,7 @@ def scan_ec2(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
                                 'severity': 'High',
                                 'type': 'volume',
                                 'resource_name': volume_id,
-                                'resource_arn': f'arn:aws:ec2:{region}:{account_id}:volume/{volume_id}',
+                                'resource_arn': mask_sensitive_data(f'arn:aws:ec2:{region}:{account_id}:volume/{volume_id}'),
                                 'description': f'EBS volume {volume_id} attached to instance {instance_id} is not encrypted',
                                 'recommendation': 'Enable encryption for EBS volumes to protect data at rest',
                                 'finding_type': 'unencrypted_volume'
@@ -1176,7 +1264,7 @@ def scan_ec2(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str
                                 'severity': 'Critical',
                                 'type': 'security_group',
                                 'resource_name': f'{sg_name} ({sg_id})',
-                                'resource_arn': f'arn:aws:ec2:{region}:{account_id}:security-group/{sg_id}',
+                                'resource_arn': mask_sensitive_data(f'arn:aws:ec2:{region}:{account_id}:security-group/{sg_id}'),
                                 'description': f'Security group {sg_name} ({sg_id}) allows access from 0.0.0.0/0',
                                 'recommendation': 'Restrict security group rules to specific IP ranges or VPC CIDR blocks',
                                 'finding_type': 'open_security_group'
@@ -1273,7 +1361,7 @@ def scan_s3(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str,
                             'severity': 'Critical',
                             'type': 'bucket',
                             'resource_name': bucket_name,
-                            'resource_arn': bucket_arn,
+                            'resource_arn': mask_sensitive_data(bucket_arn),
                             'description': f'S3 bucket "{bucket_name}" may allow public access (PublicAccessBlock not fully configured)',
                             'recommendation': 'Enable all PublicAccessBlock settings to prevent accidental public exposure',
                             'finding_type': 'public_bucket'
@@ -1287,7 +1375,7 @@ def scan_s3(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str,
                             'severity': 'Critical',
                             'type': 'bucket',
                             'resource_name': bucket_name,
-                            'resource_arn': bucket_arn,
+                            'resource_arn': mask_sensitive_data(bucket_arn),
                             'description': f'S3 bucket "{bucket_name}" does not have PublicAccessBlock configured',
                             'recommendation': 'Configure PublicAccessBlock to prevent public access',
                             'finding_type': 'public_bucket'
@@ -1305,7 +1393,7 @@ def scan_s3(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str,
                             'severity': 'High',
                             'type': 'bucket',
                             'resource_name': bucket_name,
-                            'resource_arn': bucket_arn,
+                            'resource_arn': mask_sensitive_data(bucket_arn),
                             'description': f'S3 bucket "{bucket_name}" does not have server-side encryption enabled',
                             'recommendation': 'Enable server-side encryption (SSE) to protect data at rest',
                             'finding_type': 'unencrypted_bucket'
@@ -1319,7 +1407,7 @@ def scan_s3(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str,
                             'severity': 'High',
                             'type': 'bucket',
                             'resource_name': bucket_name,
-                            'resource_arn': bucket_arn,
+                            'resource_arn': mask_sensitive_data(bucket_arn),
                             'description': f'S3 bucket "{bucket_name}" does not have server-side encryption enabled',
                             'recommendation': 'Enable server-side encryption (SSE) to protect data at rest',
                             'finding_type': 'unencrypted_bucket'
@@ -1334,7 +1422,7 @@ def scan_s3(region: str, scan_params: Dict[str, Any], scan_id: str) -> Dict[str,
                             'severity': 'Medium',
                             'type': 'bucket',
                             'resource_name': bucket_name,
-                            'resource_arn': bucket_arn,
+                            'resource_arn': mask_sensitive_data(bucket_arn),
                             'description': f'S3 bucket "{bucket_name}" does not have versioning enabled',
                             'recommendation': 'Enable versioning to protect against accidental deletion or overwrites',
                             'finding_type': 'no_versioning'

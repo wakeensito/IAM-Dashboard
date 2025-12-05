@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Settings2, Shield, Bell, Database, Monitor, Save, Users, Lock, Cloud, Key, Upload } from "lucide-react";
+import { toast } from "sonner@2.0.3";
 
 const mockUsers = [
   {
@@ -46,24 +47,42 @@ export function Settings() {
 
   return (
     <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Settings2 className="h-8 w-8 text-primary" />
+            Settings
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Configure AWS security dashboard preferences and system settings
+          </p>
+        </div>
+      </div>
+
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 bg-card border border-border">
-          <TabsTrigger value="general" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+        <TabsList className="grid w-full grid-cols-6 cyber-card border-border">
+          <TabsTrigger value="general" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:border-primary/60">
+            <Settings2 className="h-4 w-4 mr-2" />
             General
           </TabsTrigger>
-          <TabsTrigger value="security" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+          <TabsTrigger value="security" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:border-primary/60">
+            <Shield className="h-4 w-4 mr-2" />
             Security
           </TabsTrigger>
-          <TabsTrigger value="access-control" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+          <TabsTrigger value="access-control" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:border-primary/60">
+            <Users className="h-4 w-4 mr-2" />
             Access Control
           </TabsTrigger>
-          <TabsTrigger value="encryption" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+          <TabsTrigger value="encryption" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:border-primary/60">
+            <Lock className="h-4 w-4 mr-2" />
             Encryption
           </TabsTrigger>
-          <TabsTrigger value="cloud" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+          <TabsTrigger value="cloud" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:border-primary/60">
+            <Cloud className="h-4 w-4 mr-2" />
             Cloud & Deploy
           </TabsTrigger>
-          <TabsTrigger value="system" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+          <TabsTrigger value="system" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:border-primary/60">
+            <Monitor className="h-4 w-4 mr-2" />
             System
           </TabsTrigger>
         </TabsList>
@@ -82,10 +101,10 @@ export function Settings() {
                   <div>
                     <Label htmlFor="app-theme">Application Theme</Label>
                     <Select defaultValue="dark">
-                      <SelectTrigger className="bg-input border-border">
+                      <SelectTrigger className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="cyber-card border-border">
                         <SelectItem value="dark">Dark (Cyber)</SelectItem>
                         <SelectItem value="light">Light</SelectItem>
                         <SelectItem value="auto">Auto</SelectItem>
@@ -96,10 +115,10 @@ export function Settings() {
                   <div>
                     <Label htmlFor="language">Language</Label>
                     <Select defaultValue="en">
-                      <SelectTrigger className="bg-input border-border">
+                      <SelectTrigger className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="cyber-card border-border">
                         <SelectItem value="en">English</SelectItem>
                         <SelectItem value="es">Spanish</SelectItem>
                         <SelectItem value="fr">French</SelectItem>
@@ -113,10 +132,10 @@ export function Settings() {
                   <div>
                     <Label htmlFor="refresh-interval">Auto Refresh Interval</Label>
                     <Select defaultValue="30">
-                      <SelectTrigger className="bg-input border-border">
+                      <SelectTrigger className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="cyber-card border-border">
                         <SelectItem value="10">10 seconds</SelectItem>
                         <SelectItem value="30">30 seconds</SelectItem>
                         <SelectItem value="60">1 minute</SelectItem>
@@ -132,7 +151,7 @@ export function Settings() {
                       id="max-logs"
                       type="number"
                       defaultValue="10000"
-                      className="bg-input border-border"
+                      className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary"
                     />
                   </div>
                 </div>
@@ -206,7 +225,7 @@ export function Settings() {
                     <SelectTrigger className="bg-input border-border">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="cyber-card border-border">
                       <SelectItem value="low">Low</SelectItem>
                       <SelectItem value="normal">Normal</SelectItem>
                       <SelectItem value="high">High</SelectItem>
@@ -221,7 +240,7 @@ export function Settings() {
                     <SelectTrigger className="bg-input border-border">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="cyber-card border-border">
                       <SelectItem value="low">Low (More alerts)</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
                       <SelectItem value="high">High (Fewer alerts)</SelectItem>
@@ -364,16 +383,16 @@ export function Settings() {
                         value={reportPassword}
                         onChange={(e) => setReportPassword(e.target.value)}
                         placeholder="Enter encryption password..."
-                        className="bg-input border-border"
+                        className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary"
                       />
                     </div>
                     <div>
                       <Label>Encryption Method</Label>
                       <Select defaultValue="aes256">
-                        <SelectTrigger className="bg-input border-border">
+                        <SelectTrigger className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="cyber-card border-border">
                           <SelectItem value="aes256">AES-256-GCM</SelectItem>
                           <SelectItem value="aes128">AES-128-GCM</SelectItem>
                           <SelectItem value="chacha20">ChaCha20-Poly1305</SelectItem>
@@ -459,10 +478,10 @@ export function Settings() {
                     <div>
                       <Label>Storage Provider</Label>
                       <Select defaultValue="s3">
-                        <SelectTrigger className="bg-input border-border">
+                        <SelectTrigger className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="cyber-card border-border">
                           <SelectItem value="s3">Amazon S3</SelectItem>
                           <SelectItem value="azure">Azure Blob Storage</SelectItem>
                           <SelectItem value="gcp">Google Cloud Storage</SelectItem>
@@ -477,7 +496,7 @@ export function Settings() {
                           id="access-key"
                           type="password"
                           placeholder="Enter access key..."
-                          className="bg-input border-border"
+                          className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary"
                         />
                       </div>
                       <div>
@@ -486,7 +505,7 @@ export function Settings() {
                           id="secret-key"
                           type="password"
                           placeholder="Enter secret key..."
-                          className="bg-input border-border"
+                          className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary"
                         />
                       </div>
                     </div>
@@ -496,7 +515,7 @@ export function Settings() {
                       <Input
                         id="bucket-name"
                         placeholder="forensics-evidence-bucket"
-                        className="bg-input border-border"
+                        className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary"
                       />
                     </div>
                   </div>
@@ -522,7 +541,7 @@ export function Settings() {
                       <Label>Container Registry</Label>
                       <Input
                         placeholder="registry.company.com/forensics-toolkit"
-                        className="bg-input border-border"
+                        className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary"
                       />
                     </div>
                     
@@ -530,10 +549,10 @@ export function Settings() {
                       <div>
                         <Label>Memory Limit</Label>
                         <Select defaultValue="8g">
-                          <SelectTrigger className="bg-input border-border">
+                          <SelectTrigger className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="cyber-card border-border">
                             <SelectItem value="4g">4 GB</SelectItem>
                             <SelectItem value="8g">8 GB</SelectItem>
                             <SelectItem value="16g">16 GB</SelectItem>
@@ -544,10 +563,10 @@ export function Settings() {
                       <div>
                         <Label>CPU Limit</Label>
                         <Select defaultValue="4">
-                          <SelectTrigger className="bg-input border-border">
+                          <SelectTrigger className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="cyber-card border-border">
                             <SelectItem value="2">2 CPUs</SelectItem>
                             <SelectItem value="4">4 CPUs</SelectItem>
                             <SelectItem value="8">8 CPUs</SelectItem>
@@ -778,17 +797,17 @@ export function Settings() {
                       defaultValue="4"
                       min="1"
                       max="64"
-                      className="bg-input border-border"
+                      className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary"
                     />
                   </div>
                   
                   <div>
                     <Label htmlFor="cpu-cores">CPU Cores for Scanning</Label>
                     <Select defaultValue="auto">
-                      <SelectTrigger className="bg-input border-border">
+                      <SelectTrigger className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="cyber-card border-border">
                         <SelectItem value="1">1 Core</SelectItem>
                         <SelectItem value="2">2 Cores</SelectItem>
                         <SelectItem value="4">4 Cores</SelectItem>
@@ -804,17 +823,17 @@ export function Settings() {
                     <Input 
                       id="temp-directory"
                       defaultValue="C:\Temp\Forensics"
-                      className="bg-input border-border"
+                      className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary"
                     />
                   </div>
                   
                   <div>
                     <Label htmlFor="log-level">Logging Level</Label>
                     <Select defaultValue="info">
-                      <SelectTrigger className="bg-input border-border">
+                      <SelectTrigger className="bg-muted/50 border-border hover:bg-muted/70 focus:border-primary">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="cyber-card border-border">
                         <SelectItem value="error">Error Only</SelectItem>
                         <SelectItem value="warn">Warning</SelectItem>
                         <SelectItem value="info">Info</SelectItem>
@@ -884,18 +903,40 @@ export function Settings() {
       </Tabs>
 
       {/* Save Settings */}
-      <div className="flex gap-4">
-        <Button className="bg-primary text-primary-foreground hover:bg-primary/80 cyber-glow">
-          <Save className="h-4 w-4 mr-2" />
-          Save Settings
-        </Button>
-        <Button variant="outline" className="border-border">
-          Reset to Defaults
-        </Button>
-        <Button variant="outline" className="border-border">
-          Export Configuration
-        </Button>
-      </div>
+      <Card className="cyber-card">
+        <CardContent className="p-6">
+          <div className="flex justify-end gap-4">
+            <Button 
+              variant="outline" 
+              className="border-border hover:bg-muted/50"
+              onClick={() => {
+                toast.info('Settings reset to defaults');
+              }}
+            >
+              Reset to Defaults
+            </Button>
+            <Button 
+              variant="outline" 
+              className="border-border hover:bg-muted/50"
+              onClick={() => {
+                toast.info('Configuration exported');
+              }}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Export Configuration
+            </Button>
+            <Button 
+              className="bg-primary text-primary-foreground hover:bg-primary/80 cyber-glow"
+              onClick={() => {
+                toast.success('Settings saved successfully');
+              }}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Settings
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

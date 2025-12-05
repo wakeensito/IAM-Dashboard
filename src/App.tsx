@@ -92,7 +92,7 @@ export default function App() {
           </div>
         );
       case "compliance":
-        return <ComplianceDashboard />;
+        return <ComplianceDashboard onNavigate={setActiveTab} />;
       case "cost-optimization":
         return (
           <div className="p-6">

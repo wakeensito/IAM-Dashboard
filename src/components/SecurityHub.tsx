@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { DemoModeBanner } from "./DemoModeBanner";
+import { scanSecurityHub, type ScanResponse } from "../services/api";
+import { useScanResults } from "../context/ScanResultsContext";
 
 interface SecurityHubFinding {
   id: string;
@@ -109,22 +111,170 @@ const mockSummary: SecurityHubSummary = {
 };
 
 export function SecurityHub() {
-  const [findings, setFindings] = useState<SecurityHubFinding[]>(mockFindings);
-  const [summary, setSummary] = useState<SecurityHubSummary>(mockSummary);
+  const [findings, setFindings] = useState<SecurityHubFinding[]>([]);
+  const [summary, setSummary] = useState<SecurityHubSummary>({
+    total_findings: 0,
+    critical_findings: 0,
+    high_findings: 0,
+    medium_findings: 0,
+    low_findings: 0,
+    informational_findings: 0,
+    new_findings: 0,
+    resolved_findings: 0,
+    compliance_score: 100
+  });
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<string>('all');
+  const [isScanning, setIsScanning] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedRegion, setSelectedRegion] = useState('us-east-1');
+  const [error, setError] = useState<string | null>(null);
+  const { addScanResult, getScanResult } = useScanResults();
+
+  // Load existing scan results if available
+  useEffect(() => {
+    const existingResult = getScanResult('security-hub');
+    if (existingResult && existingResult.findings && existingResult.findings.length > 0) {
+      transformAndSetFindings(existingResult);
+    }
+  }, []);
+
+  // Transform Lambda response to component format
+  const transformAndSetFindings = (scanResponse: any) => {
+    const results = scanResponse.results || scanResponse;
+    
+    // Transform findings from AWS Security Hub format
+    const transformedFindings: SecurityHubFinding[] = (results.findings || []).map((finding: any) => {
+      const severity = finding.Severity?.Label || finding.severity || 'INFORMATIONAL';
+      const workflow = finding.Workflow?.Status || finding.workflow_status || 'NEW';
+      const compliance = finding.Compliance?.Status || finding.compliance_status || 'UNKNOWN';
+      
+      return {
+        id: finding.Id || finding.id || `sh-${Date.now()}-${Math.random()}`,
+        title: finding.Title || finding.title || 'Security Finding',
+        description: finding.Description || finding.description || '',
+        severity: severity.toUpperCase() as SecurityHubFinding['severity'],
+        status: workflow.toUpperCase() as SecurityHubFinding['status'],
+        product_name: finding.ProductFields?.['aws/securityhub/ProductName'] || 
+                     finding.ProductName || 
+                     finding.product_name || 
+                     'Security Hub',
+        resource_type: finding.Resources?.[0]?.Type || finding.resource_type || 'Unknown',
+        resource_id: finding.Resources?.[0]?.Id || finding.resource_id || 'N/A',
+        region: finding.Resources?.[0]?.Region || finding.region || selectedRegion,
+        created_at: finding.CreatedAt || finding.created_at || new Date().toISOString(),
+        updated_at: finding.UpdatedAt || finding.updated_at || new Date().toISOString(),
+        compliance_status: compliance,
+        workflow_status: workflow
+      };
+    });
+
+    setFindings(transformedFindings);
+
+    // Transform summary
+    const summaryData = results.summary || {};
+    setSummary({
+      total_findings: summaryData.total_findings || transformedFindings.length,
+      critical_findings: summaryData.critical || 0,
+      high_findings: summaryData.high || 0,
+      medium_findings: summaryData.medium || 0,
+      low_findings: summaryData.low || 0,
+      informational_findings: transformedFindings.filter(f => f.severity === 'INFORMATIONAL').length,
+      new_findings: transformedFindings.filter(f => f.status === 'NEW').length,
+      resolved_findings: transformedFindings.filter(f => f.status === 'RESOLVED').length,
+      compliance_score: summaryData.compliance_score || 
+        (transformedFindings.length === 0 ? 100 : 
+         Math.max(0, Math.round(100 - ((summaryData.critical || 0) * 10 + (summaryData.high || 0) * 5 + (summaryData.medium || 0) * 2))))
+    });
+  };
+
+  const handleStartScan = async () => {
+    setIsScanning(true);
+    setError(null);
+    
+    try {
+      toast.info('Security Hub scan started', {
+        description: 'Fetching security findings from AWS Security Hub...'
+      });
+
+      // Call the real API
+      const response: ScanResponse = await scanSecurityHub(selectedRegion);
+      
+      // API Response received
+
+      // Check for errors in response (Lambda returns 200 even with errors)
+      const errorMsg = response.error || response.results?.error || response.message;
+      if (errorMsg) {
+        // Error detected in Security Hub response
+        if (errorMsg.toLowerCase().includes('not enabled') || 
+            errorMsg.toLowerCase().includes('invalidaccess')) {
+          toast.error('Security Hub not enabled', {
+            description: 'Please enable AWS Security Hub in this region first'
+          });
+          setError('Security Hub is not enabled in this region. Please enable it in the AWS Console.');
+        } else if (errorMsg.toLowerCase().includes('permission') || 
+                   errorMsg.toLowerCase().includes('accessdenied')) {
+          toast.error('Permission denied', {
+            description: 'Lambda does not have permission to access Security Hub'
+          });
+          setError('Lambda does not have permission to access Security Hub. Please check IAM permissions.');
+        } else {
+          toast.error('Security Hub scan failed', {
+            description: errorMsg
+          });
+          setError(errorMsg);
+        }
+        setIsScanning(false);
+        return;
+      }
+
+      // Check if we have valid response structure
+      if (!response.results) {
+        // No results in Security Hub response
+        setError('Invalid response format from Security Hub scan.');
+        setIsScanning(false);
+        return;
+      }
+
+      // Empty findings is valid (Security Hub enabled but no findings)
+      const findings = response.results.findings || [];
+      const summary = response.results.summary || {};
+      
+      // Security Hub findings and summary processed
+
+      // Store in context for Reports component
+      addScanResult(response);
+
+      // Transform and set findings
+      transformAndSetFindings(response);
+
+      setIsScanning(false);
+      const findingsCount = summary.total_findings || findings.length || 0;
+      if (findingsCount > 0) {
+        toast.success('Security Hub scan completed', {
+          description: `Found ${findingsCount} security findings`
+        });
+      } else {
+        toast.success('Security Hub scan completed', {
+          description: 'No security findings found (this is good!)'
+        });
+      }
+      
+    } catch (err) {
+      // Security Hub scan error
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setIsScanning(false);
+      toast.error('Failed to scan Security Hub', {
+        description: err instanceof Error ? err.message : 'Unknown error'
+      });
+    }
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    toast.info('Refreshing Security Hub findings...');
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsRefreshing(false);
-      toast.success('Security Hub findings updated');
-    }, 1500);
+    await handleStartScan();
+    setIsRefreshing(false);
   };
 
   const getSeverityColor = (severity: string) => {
@@ -171,10 +321,28 @@ export function SecurityHub() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="us-east-1">us-east-1</SelectItem>
+              <SelectItem value="us-west-2">us-west-2</SelectItem>
+              <SelectItem value="eu-west-1">eu-west-1</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button 
+            onClick={handleStartScan}
+            disabled={isScanning || isRefreshing}
+            className="bg-primary text-primary-foreground"
+          >
+            <Play className={`h-4 w-4 mr-2 ${isScanning ? 'animate-pulse' : ''}`} />
+            {isScanning ? 'Scanning...' : 'Scan Security Hub'}
+          </Button>
           <Button 
             variant="outline" 
             onClick={handleRefresh}
-            disabled={isRefreshing}
+            disabled={isRefreshing || isScanning}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             Refresh
@@ -185,6 +353,33 @@ export function SecurityHub() {
           </Button>
         </div>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <Card className="cyber-card border-[#ff0040]">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-[#ff0040]">
+              <AlertTriangle className="h-5 w-5" />
+              <p>{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Loading State */}
+      {isScanning && (
+        <Card className="cyber-card">
+          <CardContent className="pt-6">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Scanning Security Hub...</span>
+                <span className="text-sm text-muted-foreground">This may take a moment</span>
+              </div>
+              <Progress value={50} className="h-2" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -304,20 +499,26 @@ export function SecurityHub() {
           <CardTitle>Security Findings ({filteredFindings.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Severity</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Resource</TableHead>
-                <TableHead>Region</TableHead>
-                <TableHead>Compliance</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredFindings.map((finding) => (
+          {filteredFindings.length === 0 && !isScanning ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No findings available. Click "Scan Security Hub" to fetch security findings.</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Severity</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Resource</TableHead>
+                  <TableHead>Region</TableHead>
+                  <TableHead>Compliance</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredFindings.map((finding) => (
                 <TableRow key={finding.id} className="cursor-pointer hover:bg-accent/10">
                   <TableCell>
                     <div>
@@ -349,9 +550,10 @@ export function SecurityHub() {
                     </Badge>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

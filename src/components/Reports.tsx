@@ -126,6 +126,210 @@ export function Reports({ reports }: ReportsProps) {
     return scanResult.findings || [];
   };
 
+  /**
+   * Generate Security Summary Report - Complete overview of all security findings
+   */
+  const generateSecuritySummary = () => {
+    setIsGenerating(true);
+    const allScans = getAllScanResults();
+    
+    if (allScans.length === 0) {
+      toast.warning('No scan data available', {
+        description: 'Please run scans first to generate a security summary report'
+      });
+      setIsGenerating(false);
+      return;
+    }
+
+    // Combine all scan results
+    const combinedSummary = {
+      critical_findings: allScans.reduce((sum, s) => sum + (s.scan_summary?.critical_findings || 0), 0),
+      high_findings: allScans.reduce((sum, s) => sum + (s.scan_summary?.high_findings || 0), 0),
+      medium_findings: allScans.reduce((sum, s) => sum + (s.scan_summary?.medium_findings || 0), 0),
+      low_findings: allScans.reduce((sum, s) => sum + (s.scan_summary?.low_findings || 0), 0),
+      users: allScans.find(s => s.scanner_type === 'iam')?.scan_summary?.users || 0,
+      roles: allScans.find(s => s.scanner_type === 'iam')?.scan_summary?.roles || 0,
+      policies: allScans.find(s => s.scanner_type === 'iam')?.scan_summary?.policies || 0,
+      groups: allScans.find(s => s.scanner_type === 'iam')?.scan_summary?.groups || 0
+    };
+    
+    const allFindings = allScans.flatMap(s => s.findings || []);
+    
+    const scanData: ScanResultData = {
+      scan_id: `security-summary-${Date.now()}`,
+      scanner_type: 'comprehensive',
+      region: allScans[0]?.region || 'us-east-1',
+      status: 'completed',
+      timestamp: new Date().toISOString(),
+      results: { scans: allScans },
+      scan_summary: combinedSummary,
+      findings: allFindings
+    };
+
+    try {
+      exportScanResultToPDF(scanData, 'Security Summary Report');
+      toast.success('Security Summary Report generated', {
+        description: `Combined ${allScans.length} scan results with ${allFindings.length} total findings`
+      });
+    } catch (error) {
+      toast.error('Failed to generate report', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  /**
+   * Generate Threat Intelligence Report - Detailed analysis of detected threats
+   */
+  const generateThreatIntelligence = () => {
+    setIsGenerating(true);
+    const allScans = getAllScanResults();
+    
+    if (allScans.length === 0) {
+      toast.warning('No scan data available', {
+        description: 'Please run scans first to generate a threat intelligence report'
+      });
+      setIsGenerating(false);
+      return;
+    }
+
+    // Focus on critical and high severity findings
+    const allFindings = allScans.flatMap(s => s.findings || []);
+    const threatFindings = allFindings.filter((f: any) => {
+      const severity = (f.severity || '').toLowerCase();
+      return severity === 'critical' || severity === 'high';
+    });
+
+    // Group threats by type
+    const threatsByType: Record<string, any[]> = {};
+    threatFindings.forEach((finding: any) => {
+      const type = finding.type || finding.finding_type || finding.resource_type || 'Unknown';
+      if (!threatsByType[type]) {
+        threatsByType[type] = [];
+      }
+      threatsByType[type].push(finding);
+    });
+
+    const threatSummary = {
+      critical_findings: allFindings.filter((f: any) => (f.severity || '').toLowerCase() === 'critical').length,
+      high_findings: allFindings.filter((f: any) => (f.severity || '').toLowerCase() === 'high').length,
+      medium_findings: 0,
+      low_findings: 0,
+      total_threats: threatFindings.length,
+      threat_types: Object.keys(threatsByType).length
+    };
+    
+    const scanData: ScanResultData = {
+      scan_id: `threat-intelligence-${Date.now()}`,
+      scanner_type: 'threat-intelligence',
+      region: allScans[0]?.region || 'us-east-1',
+      status: 'completed',
+      timestamp: new Date().toISOString(),
+      results: { 
+        threats_by_type: threatsByType,
+        threat_analysis: {
+          total_threats: threatFindings.length,
+          critical_count: threatSummary.critical_findings,
+          high_count: threatSummary.high_findings,
+          threat_types: Object.keys(threatsByType)
+        }
+      },
+      scan_summary: threatSummary,
+      findings: threatFindings
+    };
+
+    try {
+      exportScanResultToPDF(scanData, 'Threat Intelligence Report');
+      toast.success('Threat Intelligence Report generated', {
+        description: `Analyzed ${threatFindings.length} critical/high threats across ${Object.keys(threatsByType).length} threat types`
+      });
+    } catch (error) {
+      toast.error('Failed to generate report', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  /**
+   * Generate Executive Summary Report - High-level summary for management
+   */
+  const generateExecutiveSummary = () => {
+    setIsGenerating(true);
+    const allScans = getAllScanResults();
+    
+    if (allScans.length === 0) {
+      toast.warning('No scan data available', {
+        description: 'Please run scans first to generate an executive summary report'
+      });
+      setIsGenerating(false);
+      return;
+    }
+
+    // Aggregate high-level metrics
+    const totalCritical = allScans.reduce((sum, s) => sum + (s.scan_summary?.critical_findings || 0), 0);
+    const totalHigh = allScans.reduce((sum, s) => sum + (s.scan_summary?.high_findings || 0), 0);
+    const totalMedium = allScans.reduce((sum, s) => sum + (s.scan_summary?.medium_findings || 0), 0);
+    const totalLow = allScans.reduce((sum, s) => sum + (s.scan_summary?.low_findings || 0), 0);
+    const totalFindings = totalCritical + totalHigh + totalMedium + totalLow;
+    
+    // Calculate compliance percentage (green if no critical/high, yellow if some, red if many)
+    const compliancePercentage = totalFindings === 0 ? 100 : 
+      Math.max(0, Math.round(100 - ((totalCritical * 10 + totalHigh * 5 + totalMedium * 2 + totalLow) / totalFindings * 100)));
+
+    // Get top 5 critical findings for executive summary
+    const allFindings = allScans.flatMap(s => s.findings || []);
+    const criticalFindings = allFindings
+      .filter((f: any) => (f.severity || '').toLowerCase() === 'critical')
+      .slice(0, 5);
+
+    const executiveSummary = {
+      critical_findings: totalCritical,
+      high_findings: totalHigh,
+      medium_findings: totalMedium,
+      low_findings: totalLow,
+      total_findings: totalFindings,
+      compliance_percentage: compliancePercentage,
+      scans_analyzed: allScans.length,
+      top_critical_risks: criticalFindings.length
+    };
+    
+    const scanData: ScanResultData = {
+      scan_id: `executive-summary-${Date.now()}`,
+      scanner_type: 'executive-summary',
+      region: allScans[0]?.region || 'us-east-1',
+      status: 'completed',
+      timestamp: new Date().toISOString(),
+      results: { 
+        executive_metrics: executiveSummary,
+        top_critical_findings: criticalFindings,
+        scan_summary: {
+          total_scans: allScans.length,
+          scanners_used: [...new Set(allScans.map(s => s.scanner_type))],
+          compliance_score: compliancePercentage
+        }
+      },
+      scan_summary: executiveSummary,
+      findings: criticalFindings // Only show top critical findings in executive summary
+    };
+
+    try {
+      exportScanResultToPDF(scanData, 'Executive Summary Report');
+      toast.success('Executive Summary Report generated', {
+        description: `Compliance: ${compliancePercentage}% | ${totalFindings} total findings across ${allScans.length} scans`
+      });
+    } catch (error) {
+      toast.error('Failed to generate report', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const generateReport = () => {
     if (!reportType) {
       toast.error('Please select a report type');
@@ -583,8 +787,14 @@ export function Reports({ reports }: ReportsProps) {
               <p className="text-sm text-muted-foreground mb-3">
                 Complete overview of all security findings
               </p>
-              <Button variant="outline" size="sm" className="border-border w-full">
-                Generate
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-border w-full"
+                onClick={generateSecuritySummary}
+                disabled={isGenerating}
+              >
+                {isGenerating ? "Generating..." : "Generate"}
               </Button>
             </div>
             
@@ -593,8 +803,14 @@ export function Reports({ reports }: ReportsProps) {
               <p className="text-sm text-muted-foreground mb-3">
                 Detailed analysis of detected threats
               </p>
-              <Button variant="outline" size="sm" className="border-border w-full">
-                Generate
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-border w-full"
+                onClick={generateThreatIntelligence}
+                disabled={isGenerating}
+              >
+                {isGenerating ? "Generating..." : "Generate"}
               </Button>
             </div>
             
@@ -603,8 +819,14 @@ export function Reports({ reports }: ReportsProps) {
               <p className="text-sm text-muted-foreground mb-3">
                 High-level summary for management
               </p>
-              <Button variant="outline" size="sm" className="border-border w-full">
-                Generate
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-border w-full"
+                onClick={generateExecutiveSummary}
+                disabled={isGenerating}
+              >
+                {isGenerating ? "Generating..." : "Generate"}
               </Button>
             </div>
           </div>

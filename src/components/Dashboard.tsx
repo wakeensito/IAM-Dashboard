@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
@@ -12,31 +12,15 @@ import { scanFull, getDashboardData, getSecurityHubSummary, type ScanResponse, t
 import { useScanResults } from "../context/ScanResultsContext";
 import { toast } from "sonner@2.0.3";
 import type { ReportRecord } from "../types/report";
+import { formatRelativeTime } from "../utils/ui";
 
 interface DashboardProps {
   onNavigate?: (tab: string) => void;
   onFullScanComplete?: (report: ReportRecord) => void;
 }
 
-// Helper function to format timestamp
-const formatTimestamp = (timestamp: string): string => {
-  try {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    return date.toLocaleDateString();
-  } catch {
-    return timestamp;
-  }
-};
+// Use shared formatRelativeTime utility
+const formatTimestamp = formatRelativeTime;
 
 const FULL_SCAN_PROCESSES_PLACEHOLDER = 550;
 const FULL_SCAN_REPORT_SIZE = "1.5 MB";
@@ -111,17 +95,61 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
   // Get scan results - convert Map to array, re-compute when version changes
   const scanResults = useMemo(() => {
     const results = Array.from(scanResultsMap.values());
-    console.log('[Dashboard] Memoized scanResults, version:', scanResultsVersion, 'Map size:', scanResultsMap.size, 'results array length:', results.length);
-    console.log('[Dashboard] Memoized scanResults details:', results.map(r => ({
-      type: r.scanner_type,
-      timestamp: r.timestamp,
-      hasSummary: !!r.scan_summary,
-      summary: r.scan_summary,
-      summaryKeys: r.scan_summary ? Object.keys(r.scan_summary) : [],
-      findingsCount: r.findings?.length || 0
-    })));
     return results;
   }, [scanResultsVersion, scanResultsMap]); // Re-compute when version changes
+
+  const generateWeeklyTrends = useCallback((summary: any, compliance: any) => {
+    // Generate placeholder weekly trends based on current compliance score
+    // In production, this would come from historical data API
+    const baseCompliant = compliance.overall_score || 78;
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const trends = days.map((day, index) => {
+      const variation = (Math.random() - 0.5) * 10; // ±5% variation
+      const compliant = Math.max(70, Math.min(100, baseCompliant + variation));
+      const violations = Math.round((100 - compliant) * 0.8);
+      const critical = Math.round((100 - compliant) * 0.2);
+      return {
+        name: day,
+        compliant: Math.round(compliant),
+        violations,
+        critical
+      };
+    });
+    setWeeklyTrends(trends);
+  }, []);
+
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setStatsLoading(true);
+      const [dashboard, securityHub] = await Promise.all([
+        getDashboardData('us-east-1', '24h').catch(() => null),
+        getSecurityHubSummary('us-east-1').catch(() => null)
+      ]);
+
+      let summary: any = {};
+      let compliance: any = {};
+
+      if (dashboard) {
+        setDashboardData(dashboard);
+        
+        // Don't update stats from dashboard API - keep neutral state (zeros, 100% compliant)
+        // This creates a better UX where users see results populate when they scan
+        // Stats will be updated by the scanResults useEffect hook when scans run
+      }
+
+      // Don't update stats from Security Hub - keep neutral state until scan runs
+
+      // Generate weekly trends from available data (placeholder for now - would need historical data)
+      // This would ideally come from a time-series endpoint
+      generateWeeklyTrends(summary, compliance);
+      
+    } catch (error) {
+      // Error fetching dashboard data - silently fail, scan results will update via context
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [generateWeeklyTrends]); // Depends on generateWeeklyTrends
 
   // Fetch dashboard data on mount and refresh (but don't overwrite scan results)
   useEffect(() => {
@@ -129,18 +157,10 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
     // Set up periodic refresh every 5 minutes
     const interval = setInterval(fetchDashboardData, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []); // Only run on mount, scan results will update via separate useEffect
+  }, [fetchDashboardData]); // Now fetchDashboardData is stable
 
   // Update stats and alerts when scan results change - USE ONLY THE MOST RECENT SCAN
   useEffect(() => {
-    console.log('[Dashboard] useEffect triggered, scanResults.length:', scanResults.length, 'version:', scanResultsVersion);
-    console.log('[Dashboard] scanResults full details:', scanResults.map(r => ({ 
-      type: r.scanner_type, 
-      timestamp: r.timestamp,
-      hasSummary: !!r.scan_summary,
-      summary: r.scan_summary,
-      summaryKeys: r.scan_summary ? Object.keys(r.scan_summary) : [],
-      findingsCount: r.findings?.length || 0,
       hasFindings: !!(r.findings && r.findings.length > 0)
     })));
     
@@ -159,7 +179,6 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       });
       
       const mostRecentScan = sortedScans[0];
-      console.log('[Dashboard] Using most recent scan:', { type: mostRecentScan.scanner_type, timestamp: mostRecentScan.timestamp, summary: mostRecentScan.scan_summary });
       
       // Use ONLY the most recent scan's data (not aggregating)
       const summary = mostRecentScan.scan_summary || {};
@@ -215,21 +234,8 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       
       setSecurityAlerts(alerts);
       
-      console.log('[Dashboard] Updated stats from most recent scan:', {
-        scanner_type: mostRecentScan.scanner_type,
-        timestamp: mostRecentScan.timestamp,
-        security_findings: totalFindings,
-        critical_alerts: criticalFindings,
-        high_findings: highFindings,
-        medium_findings: mediumFindings,
-        total_resources: totalResources,
-        compliance_score: complianceScore,
-        last_scan: mostRecentScan.timestamp ? formatTimestamp(mostRecentScan.timestamp) : "Recently",
-        alertsCount: alerts.length
-      });
     } else {
       // Reset to neutral state when no scan results
-      console.log('[Dashboard] No scan results, resetting to neutral state');
       setStats({
         last_scan: "Never",
         total_resources: 0,
@@ -244,68 +250,16 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
     }
   }, [scanResults, scanResultsVersion]); // Re-run when scan results version changes
 
-  const fetchDashboardData = async () => {
-    try {
-      setStatsLoading(true);
-      const [dashboard, securityHub] = await Promise.all([
-        getDashboardData('us-east-1', '24h').catch(() => null),
-        getSecurityHubSummary('us-east-1').catch(() => null)
-      ]);
-
-      let summary: any = {};
-      let compliance: any = {};
-
-      if (dashboard) {
-        setDashboardData(dashboard);
-        
-        // Don't update stats from dashboard API - keep neutral state (zeros, 100% compliant)
-        // This creates a better UX where users see results populate when they scan
-        // Stats will be updated by the scanResults useEffect hook when scans run
-      }
-
-      // Don't update stats from Security Hub - keep neutral state until scan runs
-
-      // Generate weekly trends from available data (placeholder for now - would need historical data)
-      // This would ideally come from a time-series endpoint
-      generateWeeklyTrends(summary, compliance);
-      
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
-  const generateWeeklyTrends = (summary: any, compliance: any) => {
-    // Generate placeholder weekly trends based on current compliance score
-    // In production, this would come from historical data API
-    const baseCompliant = compliance.overall_score || 78;
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const trends = days.map((day, index) => {
-      const variation = (Math.random() - 0.5) * 10; // ±5% variation
-      const compliant = Math.max(70, Math.min(100, baseCompliant + variation));
-      const violations = Math.round((100 - compliant) * 0.8);
-      const critical = Math.round((100 - compliant) * 0.2);
-      return {
-        name: day,
-        compliant: Math.round(compliant),
-        violations,
-        critical
-      };
-    });
-    setWeeklyTrends(trends);
-  };
-
   // Calculate pie chart data from stats state (which uses only the most recent scan)
-  const pieData = (() => {
+  // Memoize to avoid recalculating on every render
+  const pieData = useMemo(() => {
     const complianceScore = stats?.compliance_score ?? 100;
     const criticalCount = stats?.critical_alerts || 0;
     const highCount = stats?.high_findings || 0;
     const mediumCount = stats?.medium_findings || 0;
     const totalFindings = stats?.security_findings || 0;
     
-    console.log('[Dashboard] Pie chart using stats:', { 
+    // Calculate pie chart data from stats 
       complianceScore, 
       criticalCount, 
       highCount, 
@@ -341,9 +295,11 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       { name: 'Critical', value: Math.round(criticalPct), color: '#ff0040' }
     ];
     
-    console.log('[Dashboard] Calculated pie data from stats:', result);
     return result;
-  })();
+  }, [stats?.compliance_score, stats?.critical_alerts, stats?.high_findings, stats?.medium_findings, stats?.security_findings, stats?.last_scan]);
+
+  // Memoize filtered pie data to avoid recalculating filter on every render
+  const filteredPieData = useMemo(() => pieData.filter(d => d.value > 0), [pieData]);
 
   // Get recent security activity
   const recentActivity = securityAlerts.slice(0, 5);
@@ -391,7 +347,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
         response = await scanFull('us-east-1');
       } catch (apiError) {
         // Even if API throws, create a completed response with empty results
-        console.warn('API call failed, creating fallback response:', apiError);
+        // API call failed, using fallback response
         response = {
           scan_id: `full-${Date.now()}`,
           scanner_type: 'full',
@@ -466,7 +422,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
       
     } catch (error) {
       // This should NEVER happen for full scan, but just in case...
-      console.error('Unexpected error in handleQuickScan:', error);
+      // Unexpected error in handleQuickScan
       
       // Clear interval on error
       if (scanIntervalRef.current) {
@@ -742,7 +698,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={pieData.filter(d => d.value > 0)}
+                      data={filteredPieData}
                       cx="50%"
                       cy="50%"
                       innerRadius={80}
@@ -752,7 +708,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
                       label={({ name, value }) => `${name}: ${value}%`}
                       labelLine={false}
                     >
-                      {pieData.filter(d => d.value > 0).map((entry, index) => (
+                      {filteredPieData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -767,7 +723,7 @@ export function Dashboard({ onNavigate, onFullScanComplete }: DashboardProps) {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex justify-center gap-6 mt-4">
-                  {pieData.filter(d => d.value > 0).map((item, index) => (
+                  {pieData.map((item, index) => (
                     <div key={index} className="flex items-center gap-2">
                       <div 
                         className="w-3 h-3 rounded-sm" 
