@@ -1,6 +1,6 @@
 # Flask and core dependencies
 Flask==3.0.0
-Flask-CORS==4.0.0
+Flask-CORS==6.0.2
 Flask-RESTful==0.3.10
 Werkzeug==3.0.1
 
