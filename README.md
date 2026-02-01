@@ -1,6 +1,12 @@
 # IAM Dashboard
 
-A comprehensive cybersecurity dashboard for AWS cloud security monitoring, compliance tracking, and threat intelligence visualization.
+A **security team work haven** that centralizes vulnerability scanning and findings to enhance SOC analyst and security engineer workflows. One place to see AWS security posture, triage findings, track tickets, and reduce tool-switching.
+
+## 🎯 Who It's For
+
+- **SOC Analysts** – Centralized view of vulnerabilities across IAM, EC2, S3, Security Hub, GuardDuty, Inspector, and Macie; create and track tickets for findings
+- **Security Engineers** – Scan results, compliance status, and risk scoring in one dashboard; assign and manage remediation tickets
+- **Security Teams** – Single pane of glass for triage, prioritization, ticket tracking, and reporting
 
 ## 🚀 Quick Start
 
@@ -91,7 +97,7 @@ sudo chown -R $USER ~/.docker
 
 ## 🏗️ Architecture
 
-This project provides a complete cybersecurity monitoring solution with:
+This project provides a security team work haven with:
 
 ### Frontend (React + TypeScript)
 - Modern React dashboard with TypeScript and Vite
@@ -154,8 +160,9 @@ This project provides a complete cybersecurity monitoring solution with:
 
 ## 📊 Features
 
-### Security Dashboard
+### Security Dashboard (Analyst Work Haven)
 - Real-time security findings overview
+- Ticket and case management for findings (triage, assign, track)
 - Compliance status tracking
 - Risk assessment and scoring
 - Automated security recommendations
@@ -454,6 +461,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Ready to secure your AWS infrastructure?** 🚀
+**Ready to streamline your security team's workflow?** 🚀
 
-Start with `./setup.sh` and begin your cybersecurity journey!
+Start with `./setup.sh` and centralize your vulnerability scanning and findings.
