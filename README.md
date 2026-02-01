@@ -94,22 +94,30 @@ sudo chown -R $USER ~/.docker
 This project provides a complete cybersecurity monitoring solution with:
 
 ### Frontend (React + TypeScript)
-- Modern React dashboard with TypeScript
+- Modern React dashboard with TypeScript and Vite
 - Responsive design with dark theme
-- Real-time data visualization
-- Interactive security analysis tools
+- Radix UI components and Recharts for visualization
+- Real-time security findings and scan results
+- Interactive security analysis tools (IAM, EC2, S3, Security Hub, GuardDuty, Inspector, Macie)
 
 ### Backend (Flask + Python)
 - RESTful API for AWS integrations
 - Security scanning and analysis
-- Compliance monitoring
-- Performance metrics collection
+- DynamoDB and PostgreSQL for data storage
+- Compliance monitoring and performance metrics
 
-### Infrastructure
+### Local Development Infrastructure
 - **PostgreSQL**: Primary database for security findings
 - **Redis**: Caching and session management
 - **Grafana**: Data visualization and monitoring
 - **Prometheus**: Metrics collection and alerting
+
+### AWS Infrastructure (Terraform)
+- **Lambda**: Security scanner function (IAM, EC2, S3, Security Hub, GuardDuty, Config, Inspector, Macie)
+- **DynamoDB**: Scan results storage
+- **S3**: Static hosting and scan results archive
+- **API Gateway**: REST API for triggering scans (9 endpoints)
+- **GitHub Actions OIDC**: Secure CI/CD deployment
 
 ## 🔐 AWS Integrations
 
@@ -206,7 +214,8 @@ pytest
 ```
 ├── .github/              # GitHub configuration
 │   ├── workflows/        # GitHub Actions workflows
-│   │   └── devsecops-scan.yml # Security scanning pipeline
+│   │   ├── devsecops-scan.yml  # Security scanning pipeline
+│   │   └── deploy.yml          # Deployment pipeline
 │   └── dependabot.yml    # Automated dependency updates
 ├── backend/              # Flask API backend
 │   ├── api/              # API endpoints
@@ -219,8 +228,9 @@ pytest
 │   │   ├── dashboard.py  # Dashboard API
 │   │   └── health.py     # Health check endpoint
 │   ├── services/         # Business logic
-│   │   ├── aws_service.py # AWS SDK integration
-│   │   ├── grafana_service.py # Grafana API
+│   │   ├── aws_service.py      # AWS SDK integration
+│   │   ├── dynamodb_service.py # DynamoDB operations
+│   │   ├── grafana_service.py  # Grafana API
 │   │   └── database_service.py # Database operations
 │   ├── sql/              # Database initialization
 │   │   └── init.sql      # Database schema
@@ -243,21 +253,33 @@ pytest
 ├── docs/                 # Documentation
 │   ├── SCANNERS.md       # Security scanning guide
 │   ├── TEAM_SETUP.md     # Team onboarding guide
+│   ├── AWS-Workflow.md   # AWS integration workflow
 │   ├── CONTRIBUTING.md   # Contribution guidelines
 │   └── CHANGELOG.md      # Project changelog
 ├── infra/                # Infrastructure as Code (Terraform)
+│   ├── s3/               # S3 buckets (static hosting, scan results)
+│   ├── dynamodb/         # DynamoDB table for scan results
+│   ├── lambda/           # Lambda security scanner function
+│   ├── api-gateway/      # API Gateway REST API
+│   ├── github-actions/   # GitHub Actions OIDC for deployment
+│   ├── main.tf           # Root Terraform configuration
 │   └── README.md         # Infrastructure setup guide
 ├── k8s/                  # Kubernetes manifests
 │   └── README.md         # Kubernetes deployment guide
 ├── scripts/              # Utility scripts
-│   └── setup.sh          # Setup script
+│   ├── setup.sh          # Setup script
+│   └── create-iam-test-resources.sh
 ├── src/                  # React frontend
-│   ├── components/       # React components
-│   │   ├── ui/           # Reusable UI components
-│   │   └── figma/        # Figma design components
+│   ├── components/       # Dashboard components (Dashboard, AWSIAMScan, EC2, S3, SecurityHub, GuardDuty, etc.)
+│   │   ├── ui/           # Radix UI components
+│   │   └── figma/        # Image components
+│   ├── context/          # React context (ScanResults)
+│   ├── services/         # API client and PDF export
 │   ├── hooks/            # Custom React hooks
 │   ├── guidelines/       # Development guidelines
 │   ├── styles/           # CSS styles
+│   ├── types/            # TypeScript types
+│   ├── utils/            # Utilities
 │   ├── App.tsx           # Main React app
 │   ├── main.tsx          # React entry point
 │   └── index.css         # Global styles
@@ -354,6 +376,18 @@ docker-compose exec app pytest --cov=backend
 
 ## 🚀 Deployment
 
+### AWS Deployment (Terraform)
+Deploy the security scanner to AWS using the infrastructure modules:
+
+```bash
+cd infra
+terraform init
+terraform plan
+terraform apply
+```
+
+This deploys Lambda, DynamoDB, S3, API Gateway, and GitHub Actions OIDC. See [infra/README.md](infra/README.md) for details.
+
 ### Production Deployment
 1. Use managed databases (RDS, ElastiCache)
 2. Configure load balancers
@@ -371,13 +405,11 @@ docker-compose exec app pytest --cov=backend
 
 - [Team Setup Guide](docs/TEAM_SETUP.md) - Complete team onboarding
 - [Security Scanning Guide](docs/SCANNERS.md) - DevSecOps scanning setup
+- [AWS Workflow](docs/AWS-Workflow.md) - AWS integration workflow
 - [Contributing Guide](docs/CONTRIBUTING.md) - How to contribute to the project
 - [Security Policies](DevSecOps/SECURITY.md) - Security policies and practices
-- [Infrastructure Guide](infra/README.md) - Infrastructure as Code setup
+- [Infrastructure Guide](infra/README.md) - AWS infrastructure (Lambda, DynamoDB, S3, API Gateway)
 - [Kubernetes Guide](k8s/README.md) - Kubernetes deployment guide
-- [API Documentation](docs/api.md) - API endpoint reference (coming soon)
-- [AWS Integration Guide](docs/aws-integration.md) - AWS service setup (coming soon)
-- [Deployment Guide](docs/deployment.md) - Production deployment (coming soon)
 
 ## 🤝 Contributing
 
