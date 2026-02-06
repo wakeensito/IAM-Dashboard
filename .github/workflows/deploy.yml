@@ -19,7 +19,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@v6
       with:
         # AWS_ROLE_ARN secret must be configured in Repository Settings → Secrets
         # Format: arn:aws:iam::ACCOUNT_ID:role/IAMDash-Deployer-Prod
