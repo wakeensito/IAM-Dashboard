@@ -12,19 +12,15 @@ A **security team work haven** that centralizes vulnerability scanning and findi
 
 ### One-Command Setup
 
-```bash
-# 1. Fork the repository on GitHub first
-# 2. Clone YOUR fork
-git clone https://github.com/YOUR-USERNAME/IAM-Dashboard.git
+# 1. Clone the repository (GitHub Organization – no fork needed)
+
+git clone https://github.com/AWS-IAM-Dashboard/IAM-Dashboard.git
 
 cd IAM-Dashboard
 
-# 3. Add upstream remote
-git remote add upstream https://github.com/wakeensito/IAM-Dashboard.git
+# 2. Start the application
 
-# 4. Start the application
 docker-compose up -d
-```
 
 ### Full-Stack Development
 
