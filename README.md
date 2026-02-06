@@ -420,11 +420,13 @@ This deploys Lambda, DynamoDB, S3, API Gateway, and GitHub Actions OIDC. See [in
 
 ## 🤝 Contributing
 
+Repository: **[github.com/AWS-IAM-Dashboard/IAM-Dashboard](https://github.com/AWS-IAM-Dashboard/IAM-Dashboard)** (GitHub Organization – clone and open PRs from branches; no fork required).
+
 ### Development Workflow
-1. Create feature branch
+1. Clone the repo and create a feature branch
 2. Implement changes
 3. Add tests
-4. Submit pull request
+4. Submit pull request (branch → main)
 5. Code review
 6. Merge to main
 
