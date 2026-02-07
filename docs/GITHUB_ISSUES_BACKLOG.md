@@ -240,5 +240,51 @@ We win if we can demo this live:
 
 ---
 
-*Last updated: Semester-safe version.  
-Create issues only from the `(SEMESTER)` Quick Reference above.*
+## Milestones (Good Flow Order — Reference)
+
+> **Important:**  
+> Only **P0 + M1–M6** are **active this semester**.  
+> **M7–M10 are reference / post-semester milestones** and should not be used to create issues unless explicitly labeled `(SEMESTER)`.
+
+This table shows the *ideal long-term flow* of the project and explains why milestones are ordered the way they are.
+
+| Milestone | Name | Issues | Goal |
+|---|---|---|---|
+| **M1** | Foundation & process | F1–F6, P1, P2, P4 | CI green, docs updated, clear “done” criteria |
+| **M2** | Auth spine (backend) | B1, B6, B7, B10 | Cognito exists; OAuth + JWT working |
+| **M3** | Auth + landing (frontend) | W1, W2, W3 | Landing page + login/session end-to-end |
+| **M4** | Single-account quality | S1–S3, B13, B14b, B17, B18, A8, A9, W8–W11, W10b | Trusted findings, unified schema, better UX, refresh persistence, starter dashboards |
+| **M5** | Multi-account backend | B2, B4, B8, B11, B12 | Cross-account ingestion + account APIs (lite) |
+| **M6** | Multi-account frontend | W5, W6, W7 | Account status, switcher, multi-account UI |
+| **M7** | RBAC & security review *(POST)* | B9, S15, S16, W4 | RBAC enforced, auth security reviewed, onboarding |
+| **M8** | Data & reporting *(POST)* | A1–A7, A10–A15 | Metrics pipelines, Grafana, exports, docs |
+| **M9** | DevOps & ops polish *(POST)* | D1–D14, P3, P5 | CI/CD maturity, envs, rollback, documentation |
+| **M10** | AI & intelligence *(POST)* | I1–I17 | Guarded remediation, compliance mapping, UI integration |
+
+---
+
+## Issue Count Summary (Full Backlog — Reference)
+
+> **Note:**  
+> This is the **entire backlog**, including post-semester work.  
+> **This semester:** we will only create and work issues labeled `(SEMESTER)` (≈70 total).
+
+| Department | # of issues |
+|---|---:|
+| Foundation | 6 |
+| PMO | 5 |
+| Backend | 20 |
+| Frontend | 19 |
+| Security | 18 |
+| DevOps | 14 |
+| Data | 15 |
+| AI | 17 |
+| **Total** | **114** |
+
+**Why keep all 114?**  
+- Provides stretch work if teams move fast  
+- Allows re-scoping without running out of tasks  
+- Makes the project look mature and intentional  
+- Clearly separates *semester delivery* from *future roadmap*
+
+Only `(SEMESTER)` issues count toward Spring delivery.
