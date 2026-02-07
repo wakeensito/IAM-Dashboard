@@ -281,10 +281,4 @@ This table shows the *ideal long-term flow* of the project and explains why mile
 | AI | 17 |
 | **Total** | **114** |
 
-**Why keep all 114?**  
-- Provides stretch work if teams move fast  
-- Allows re-scoping without running out of tasks  
-- Makes the project look mature and intentional  
-- Clearly separates *semester delivery* from *future roadmap*
-
 Only `(SEMESTER)` issues count toward Spring delivery.
