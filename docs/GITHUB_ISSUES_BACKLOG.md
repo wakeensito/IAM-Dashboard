@@ -3,7 +3,7 @@
 **Repo:** https://github.com/AWS-IAM-Dashboard/IAM-Dashboard
 
 ## Context
-- **Team size:** 24 total  
+- **Team size:** 25 total  
   - **PMO:** 3  
   - **Delivery teams:** Backend, Frontend, Security, DevOps, Data, AI (≈3–4 each)
 - **Timeline:** ~9 weeks (**Feb 17 – Apr 17**)
