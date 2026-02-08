@@ -84,6 +84,53 @@ Each document must include:
 These documents are **alignment tools**, not deliverables.  
 Work begins immediately after submission.
 
+## Dependencies & Bottlenecks (Read Before Picking Issues)
+
+This section highlights **known dependencies** and **common bottlenecks** so teams can plan work without blocking each other.
+
+### Core Dependency Rules
+- If you are blocked by another milestone, **do not wait** — pick another `(SEMESTER)` issue in the same milestone.
+- Backend must publish **early contracts** (auth responses, findings schema v0) to unblock other teams.
+- PMO is responsible for re-routing work when a dependency stalls.
+
+---
+
+### Known Cross-Team Dependencies
+
+| Depends On | Blocking Work | Affected Teams |
+|----------|--------------|----------------|
+| **CI Green (F1)** | Reliable PRs & merges | All teams |
+| **Cognito Infra (B6)** | OAuth login, JWT auth | Frontend, Security |
+| **OAuth Flow (B7)** | Session handling | Frontend |
+| **JWT Validation (B10)** | RBAC enforcement | Security, Frontend |
+| **Findings Schema (B13)** | Dashboards, metrics, AI inputs | Frontend, Data, AI |
+| **Latest Scan API (B14b)** | Refresh-safe dashboard | Frontend |
+| **Metrics Endpoint (B18)** | Prometheus & Grafana | Data |
+| **Account APIs (B12)** | Account UI & switcher | Frontend |
+| **RBAC (B9)** | Secure multi-user access | Security |
+
+---
+
+### Common Bottlenecks & How We Avoid Them
+
+| Risk | Why It Hurts | Mitigation |
+|----|-------------|-----------|
+| CI stays red | Blocks all merges | Fix F1 before feature work |
+| Auth work on one person | Blocks 4+ teams | Split B6 / B7 / B10 |
+| Unstable findings schema | Rework across teams | Publish schema v0 early |
+| Frontend waiting on backend | Idle contributors | Parallelize UI polish & mocks |
+| AI starts too late | Rushed integration | Prep early, integrate in M6 |
+
+---
+
+### What to Do If You’re Blocked
+1. Pick another `(SEMESTER)` issue in the same milestone  
+2. Notify PMO in standup  
+3. PMO reassigns or escalates within 24 hours
+
+This is **expected behavior**, not failure.
+
+
 ## Backend (≈3)
 - Cognito OAuth + JWT validation
 - Unified findings schema
