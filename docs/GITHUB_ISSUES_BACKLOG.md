@@ -56,6 +56,33 @@ We win if we can demo this live:
 ---
 
 # Team Scopes (Locked by `(SEMESTER)` labels)
+## P0 Requirement: Team Scope & Ownership
+
+During **P0**, each department must submit **one short document** that defines its responsibilities for the semester.
+
+- **One document per department** (not per person)
+- **Max ~1 page**
+- **Authored by the team lead with team input**
+- **Reviewed by PMO**
+- Stored in `/docs/team-scope/`
+
+### Purpose
+- Align ownership before implementation
+- Surface dependencies early
+- Reduce rework and cross-team friction in M2–M4
+
+### Required Sections
+Each document must include:
+
+- **Team Mission** (1–2 sentences)
+- **In Scope (Semester)**
+- **Out of Scope (Implied)**
+- **Key Dependencies**
+- **Risks & Assumptions**
+- **Definition of Done (Demo-level)**
+
+These documents are **alignment tools**, not deliverables.  
+Work begins immediately after submission.
 
 ## Backend (≈4)
 - Cognito OAuth + JWT validation
