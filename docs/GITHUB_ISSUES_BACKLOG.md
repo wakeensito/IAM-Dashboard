@@ -55,7 +55,6 @@ We win if we can demo this live:
 
 ---
 
-# Team Scopes (Locked by `(SEMESTER)` labels)
 ## P0 Requirement: Team Scope & Ownership
 
 During **P0**, each department must submit **one short document** that defines its responsibilities for the semester.
@@ -130,6 +129,7 @@ This section highlights **known dependencies** and **common bottlenecks** so tea
 
 This is **expected behavior**, not failure.
 
+# Team Scopes (Locked by `(SEMESTER)` labels)
 
 ## Backend (≈3)
 - Cognito OAuth + JWT validation
