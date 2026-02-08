@@ -84,7 +84,7 @@ Each document must include:
 These documents are **alignment tools**, not deliverables.  
 Work begins immediately after submission.
 
-## Backend (≈4)
+## Backend (≈3)
 - Cognito OAuth + JWT validation
 - Unified findings schema
 - APIs: run scan, list findings, **latest scan (refresh-safe)**
@@ -108,14 +108,14 @@ Work begins immediately after submission.
 - IAM relationships (user / group / role)
 - OAuth + RBAC security review
 
-## DevOps (≈3)
+## DevOps (≈4)
 - CI green
 - PR checks + linting
 - One deployable environment
 - Terraform cleanup
 - Health check + deployment verification
 
-## Data (≈3)
+## Data (≈4)
 - Prometheus scraping backend metrics
 - Grafana dashboards:
   - Findings over time
