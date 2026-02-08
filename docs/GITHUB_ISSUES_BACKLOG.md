@@ -129,7 +129,7 @@ This section highlights **known dependencies** and **common bottlenecks** so tea
 
 This is **expected behavior**, not failure.
 
-# Team Scopes (Locked by `(SEMESTER)` labels)
+# Teams
 
 ## Backend (≈3)
 - Cognito OAuth + JWT validation
@@ -291,14 +291,6 @@ This is **expected behavior**, not failure.
 | AI-6 | (SEMESTER) Confidence scoring (H/M/L) | M6 |
 | AI-7 | (SEMESTER) Backend API for recommendations | M6 |
 | AI-8 | (SEMESTER) Frontend widget for recommendations | M6 |
-
----
-
-# Dependencies & Work Rules
-
-- **If blocked by another milestone, do not wait.** Pick another `(SEMESTER)` issue in the same milestone.
-- Backend publishes early contracts (auth responses, findings schema v0) to unblock Frontend/Data/AI.
-- PMO enforces scope via labels and milestones.
 
 ---
 
