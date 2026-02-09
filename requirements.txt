@@ -19,7 +19,7 @@ numpy==1.24.4
 requests==2.31.0
 
 # Database and caching
-SQLAlchemy==2.0.23
+SQLAlchemy==2.0.46
 Redis==5.0.1
 psycopg2-binary==2.9.9
 
