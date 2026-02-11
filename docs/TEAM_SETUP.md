@@ -27,9 +27,33 @@ docker-compose up -d
 **Wrong remote?** Point `origin` at the org:  
 `git remote set-url origin https://github.com/AWS-IAM-Dashboard/IAM-Dashboard.git`
 
+### If you already have a fork + upstream
+
+If your existing clone still points at a **personal fork** and an old `upstream`, you can switch it to the org repo without recloning:
+
+```bash
+# See your current remotes
+git remote -v
+
+# 1. Point origin at the org repo (required)
+git remote set-url origin https://github.com/AWS-IAM-Dashboard/IAM-Dashboard.git
+
+# 2. (Optional) Remove upstream if you no longer need it
+git remote remove upstream  # ok if this fails because upstream doesn't exist
+
+# 3. Make sure your local main tracks origin/main
+git checkout main
+git branch --set-upstream-to=origin/main main
+git pull
+```
+
+After this, treat your local repo like any other org clone: create branches from `main`, push to `origin`, open PRs against `AWS-IAM-Dashboard/IAM-Dashboard`.
+
 ---
 
 ## Submitting changes (PRs)
+
+> **Note:** `main` is a protected branch. Direct pushes to `main` are blocked; all changes must go through a pull request.
 
 1. **Branch from main:** `git checkout main && git pull origin main` then `git checkout -b feature/your-thing`
 2. **Commit and push:** `git add . && git commit -m "feat: what you did"` then `git push -u origin feature/your-thing`
