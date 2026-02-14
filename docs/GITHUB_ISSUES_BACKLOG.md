@@ -107,6 +107,10 @@ This section highlights **known dependencies** and **common bottlenecks** so tea
 | **Metrics Endpoint (B18)** | Prometheus & Grafana | Data |
 | **Account APIs (B12)** | Account UI & switcher | Frontend |
 | **RBAC (B9)** | Secure multi-user access | Security |
+| **API Gateway auth (S17)** | Scan endpoints protected | Frontend, DevOps |
+| **AI remediation (AI-5, AI-7)** | Remediation text to review | Security (S26) |
+| **Terraform CI/CD (D14)** | Infra applies on merge | Backend (B6), all infra work |
+| **MailHog (D16)** | Local email testing | Backend (B19), Frontend (W12) |
 
 ---
 
@@ -138,6 +142,7 @@ This is **expected behavior**, not failure.
 - Single AWS account + optional **1 extra account**
 - RBAC (admin/viewer)
 - Health + metrics endpoints
+- Email service (MailHog dev, SES prod)
 
 ## Frontend (≈4)
 - Marketing landing page
@@ -147,6 +152,7 @@ This is **expected behavior**, not failure.
 - Persist scan results on refresh
 - Simple account switcher (if backend supports)
 - First-time onboarding
+- Email flows UX (welcome, reset, alerts) with MailHog testing
 
 ## Security (≈4)
 - Top **10 IAM finding types**
@@ -154,6 +160,9 @@ This is **expected behavior**, not failure.
 - False-positive reduction + deduplication
 - IAM relationships (user / group / role)
 - OAuth + RBAC security review
+- API Gateway auth, CORS, rate limiting, security headers
+- OPA/Checkov/Gitleaks documentation and baseline
+- Remediation content review (pairs with AI)
 
 ## DevOps (≈4)
 - CI green
@@ -161,6 +170,9 @@ This is **expected behavior**, not failure.
 - One deployable environment
 - Terraform cleanup
 - Health check + deployment verification
+- Terraform apply on merge (infra deployment)
+- Vite in Docker (Frontend onboarding)
+- MailHog (local email testing)
 
 ## Data (≈4)
 - Prometheus scraping backend metrics
@@ -230,6 +242,7 @@ This is **expected behavior**, not failure.
 | B13 | (SEMESTER) Normalize scans to unified findings schema | M4 |
 | B14b | (SEMESTER) API: latest scan results (refresh-safe) | M4 |
 | B18 | (SEMESTER) Metrics endpoint for Prometheus | M4 |
+| B19 | (SEMESTER) Configure email service (MailHog for dev, SES for prod) | M4 |
 | B2 | (SEMESTER) Design multi-account *lite* (2 accounts max) | M5 |
 | B4 | (SEMESTER) Cross-account role assumption | M5 |
 | B11 | (SEMESTER) Multi-account scanning (*lite*) | M5 |
@@ -250,6 +263,7 @@ This is **expected behavior**, not failure.
 | W5 | (SEMESTER) Account connection status UI | M5 |
 | W7 | (SEMESTER) Simple account switcher | M5 |
 | W4 | (SEMESTER) First-time onboarding | M5 |
+| W12 | (SEMESTER) Use MailHog for local email flows (welcome, reset password, alerts) | M4 |
 
 ### Security
 | ID | Title | Milestone |
@@ -260,6 +274,17 @@ This is **expected behavior**, not failure.
 | S5 | (SEMESTER) Deduplicate/suppress noise | M4 |
 | S15 | (SEMESTER) Review OAuth/Cognito config | M3 |
 | S16 | (SEMESTER) Validate backend authz enforcement | M5 |
+| S17 | (SEMESTER) API Gateway auth (Cognito JWT or API key) | M5 |
+| S18 | (SEMESTER) Document OPA/Rego policies | M4 |
+| S19 | (SEMESTER) Document Checkov skip rationale | M4 |
+| S20 | (SEMESTER) Gitleaks baseline & allowlist | M3 |
+| S21 | (SEMESTER) IAM least-privilege audit (Lambda, GitHub Actions) | M5 |
+| S22 | (SEMESTER) Security headers on API responses | M4 |
+| S23 | (SEMESTER) Rate limiting on API Gateway | M5 |
+| S24 | (SEMESTER) Audit logging for sensitive actions | M5 |
+| S25 | (SEMESTER) CORS configuration review | M3 |
+| S26 | (SEMESTER) Remediation content security review (pairs with AI) | M4 |
+| S27 | (SEMESTER) Dependency vulnerability scanning in CI | M1 |
 
 ### Data & Reporting (Expanded)
 | ID | Title | Milestone |
@@ -279,6 +304,9 @@ This is **expected behavior**, not failure.
 | D8 | (SEMESTER) Lint/format gates in CI | M6 |
 | D12 | (SEMESTER) Optimize Docker images | M6 |
 | D13 | (SEMESTER) Deployment verification (/health) | M6 |
+| D14 | (SEMESTER) Add CI/CD workflow to apply Terraform on merge (infra deployment) | M1 |
+| D15 | (SEMESTER) Add Vite service to Docker for simpler Frontend onboarding | M1 |
+| D16 | (SEMESTER) Add MailHog for local email testing (welcome, reset password, alerts) | M4 |
 
 ### AI (v1 only)
 | ID | Title | Milestone |
@@ -316,11 +344,11 @@ This table shows the *ideal long-term flow* of the project and explains why mile
 
 | Milestone | Name | Issues | Goal |
 |---|---|---|---|
-| **M1** | Foundation & process | F1–F6, P1, P2, P4 | CI green, docs updated, clear “done” criteria |
+| **M1** | Foundation & process | F1–F6, P1, P2, P4, S27, D14, D15 | CI green, docs updated, clear “done” criteria |
 | **M2** | Auth spine (backend) | B1, B6, B7, B10 | Cognito exists; OAuth + JWT working |
-| **M3** | Auth + landing (frontend) | W1, W2, W3 | Landing page + login/session end-to-end |
-| **M4** | Single-account quality | S1–S3, B13, B14b, B17, B18, A8, A9, W8–W11, W10b | Trusted findings, unified schema, better UX, refresh persistence, starter dashboards |
-| **M5** | Multi-account backend | B2, B4, B8, B11, B12 | Cross-account ingestion + account APIs (lite) |
+| **M3** | Auth + landing (frontend) | W1, W2, W3, S15, S20, S25 | Landing page + login/session end-to-end |
+| **M4** | Single-account quality | S1–S3, S5, S18, S19, S22, S26, B13, B14b, B17, B18, B19, A8, A9, W8–W11, W10b, W12, D16 | Trusted findings, unified schema, better UX, refresh persistence, starter dashboards |
+| **M5** | Multi-account backend | B2, B4, B8, B11, B12, S16, S17, S21, S23, S24 | Cross-account ingestion + account APIs (lite) |
 | **M6** | Multi-account frontend | W5, W6, W7 | Account status, switcher, multi-account UI |
 | **M7** | RBAC & security review *(POST)* | B9, S15, S16, W4 | RBAC enforced, auth security reviewed, onboarding |
 | **M8** | Data & reporting *(POST)* | A1–A7, A10–A15 | Metrics pipelines, Grafana, exports, docs |
@@ -333,7 +361,7 @@ This table shows the *ideal long-term flow* of the project and explains why mile
 
 > **Note:**  
 > This is the **entire backlog**, including post-semester work.  
-> **This semester:** we will only create and work issues labeled `(SEMESTER)` (≈70 total).
+> **This semester:** we will only create and work issues labeled `(SEMESTER)` (≈85 total).
 
 | Department | # of issues |
 |---|---:|
