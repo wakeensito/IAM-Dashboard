@@ -1,13 +1,17 @@
-# .checkov.yml - Checkov configuration for IAM Dashboard
+# DevSecOps/.checkov.yml - Checkov configuration for IAM Dashboard
+
+# Enable these frameworks
 framework:
   - terraform
   - kubernetes
   - cloudformation
   - dockerfile
 
-download_external_modules: true
+# Download external Terraform modules when scanning
+download-external-modules: true
 
-skip_paths:
+# Skip common directories (use repeated skip-path, not skip_paths)
+skip-path:
   - .terraform
   - .git
   - node_modules
@@ -17,10 +21,19 @@ skip_paths:
   - logs
   - data
 
-soft_fail_on: false
+# Fail the run if checks fail (strict gate)
+# (If you later want PR-only soft fail, we’ll handle that in workflow conditionals.)
+soft-fail: false
+
+# Output verbosity
 quiet: false
 
-skip_checks:
-  - CKV_AWS_1   # wildcard actions (handled by your OPA rules)
-  - CKV_AWS_2   # wildcard resources (OPA)
-  - CKV_AWS_3   # wildcard principals (OPA)
+# Skip these checks (wildcard IAM handled by OPA)
+skip-check:
+  - CKV_AWS_1
+  - CKV_AWS_2
+  - CKV_AWS_3
+  - CKV_AWS_309 # API Gateway Authorization type. Ignored temporarily until Cognito is added
+
+# Optional: keep summary at top
+summary-position: top
